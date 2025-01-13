@@ -1,0 +1,2255 @@
+---
+title: "concentration-conundrum-r"
+author: "Jake Martin"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    code_download: true
+    code_folding: hide
+    depth: 4
+    number_sections: no
+    theme:  cosmo
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+  pdf_document:
+    toc: yes
+knit: |
+  (function(input, ...) {
+    rmarkdown::render(
+      input,
+      output_file = paste0(
+       'index.html'
+      ),
+      envir = globalenv()
+    )
+  })
+---
+
+#########################
+# README
+#########################
+
+**ARTICLE** <br>
+This R script is associated with **Martin et al (2025)** "Aligning Behavioural Ecotoxicology Tests with Real-World Water Concentrations: Current Minimum Tested Levels Far Exceed Environmental Reality" DOI:
+<br>
+
+**AUTHORS**<br>
+Jake M. Martin <sup>1,2,3</sup>* <br>
+Jack A. Band <sup>2,4</sup> <br>
+Erin S. McCallum <sup>1</sup> 
+<br>
+
+**AFFILIATIONS** <br>
+(1) School of Life and Environmental Sciences, Deakin University, Geelong, Australia <br>
+(2) Department of Wildlife, Fish, and Environmental Studies, Swedish University of Agricultural Sciences, Umeå, Sweden <br>
+(3) School of Biological Sciences, Monash University, Melbourne, Australia <br>
+(4) Institute of Zoology, Zoological Society of London, London, United Kingdom <br>
+(*) Corresponding author 
+<br>
+
+**AIM** <br>
+The aim of this study is two-fold: (1) to compare the target pharmaceuticals tested in behavioural ecotoxicology to what have been detected in the environment, highlighting potential targets for future investigation; (2) identify whether tested concentrations in behavioural ecotoxicology studies reflect those that are detected in surface waters and/or waste water.
+<br>
+
+
+**METHODS** <br>
+To achieve these aims, this study capitalises on four extensive open access databases, one of which focuses on peer-review research on the behavioural ecotoxicology of pharmaceuticals<sup>1</sup>, with the remaining three focusing on pharmaceutical environmental occurrence and concentrations<sup>2,3,4</sup>.<br>
+
+(1) The Evidence of the Impacts of Pharmaceuticals on Aquatic Animal Behaviour (EIPAAB) database (Martin et al. 2024; DOI: https://doi.org/10.32942/X2NG9R) <br>
+
+(2) The Umwelt Bundesamt Pharmaceuticals in the environment (PHARMS-UBA) database (access link: https://www.umweltbundesamt.de/en/database-pharmaceuticals-in-the-environment-1) <br>
+
+(3) the Wilkinson global river survey data (Wilkinson et al 2022: DOI: https://doi.org/10.1073/pnas.2113947119), specifically "Dataset S4. Database of pharmaceutical concentrations at all the sampling locations monitored in this project" <br>
+
+(4) The NORMAN EMPODAT Database - Chemical Occurrence Data (https://www.norman-network.com/nds/empodat/chemicalSearch.php?s=new), searched for all compounds, all countries, all years, all data sources, all organisations, all laboratories,  in Surface water (Sea water, River water, Lake water, Transitional water, Coastal water, Territorial (marine) water, Reservoirs, Others) and waste water (Urban, Industrial, Municipal, Other) Ecosystems/matrices on 19-12-2024
+<br>
+
+The four databases were filtered to focus on pharmaceuticals compounds, environmental samples from surface waters/waste water (e.g. river water, lake water, sea/ocean water, reservoirs, waste water treatment plant [WWTP] effluent), and environmental/lab samples measured in units of mass per volume of water, where necessary. <br>
+
+**RESULTS**<br>
+Through the combination of these open access databases, we were able to compare the data from over **XX** behavioural ecotoxicology exposures. In total, **XX** pharmaceutical compounds tested in the EIPAAB database (with an environmental motivation and unit measures in mass per volume of water) also had associated environmental data in at least one of the three databases (XX% of possible compounds). We detected a positive association with the number of behavioural ecotoxicology tests and total number of environmental detections per compound, but not the proportion of positive detections per compound (i.e. relative number of samples above limit of detection). In terms of concentrations, on average, the concentrations used in behavioural ecotoxicology were **XX times higher** then median surface water concentrations, and **XX times higher** then those in effluent. Testing each database separately resulted in very different estimates of relative concentrations and occurrence correlations... Lastly, we highlighted a number of pharmaceutical contaminants that have high environmental detections, but have not yet been the subject of any behavioural ecotoxicology test, and thus could be key compounds to focus future reserach.  <br>
+
+**SCRIPT** <br>
+This is an R markdown script written in R studio (2023.09.0+463 “Desert Sunflower” Release). The 'concentration-conundrum' git repository hosts this script, and if downloaded (or pulled) it will reproduce all data tidy/filter, analysis, and visualisations used in Martin et al (2025). The GitHub repository includes all raw input data from the four open access databases, as well as all output data and figures. I have tried to structure this code with Open, Reliable, and Transparent (ORT) coding practices in mind. Feel free to reach out if anything is unclear.
+
+The R script first cleans and filters each databases to make them comparable. In terms of filtering, we target pharmaceutical compounds, surface waters/waste water effluent, and environmental/lab samples measured in units of mass per volume of water (e.g. ug/L). <br>
+
+We then summarise occurrence and concentrations between EIPAAB the three environmental databases (UBA, Wilkson and NORMAN) separately, to highlight the consistency of different environmental databases. <br>
+
+Lastly we combined all environmental datasets for an overall assesses of occurrence and concentrations between EIPAAB and environmental data. <br>
+
+GitHub: https://github.com/JakeMartinResearch/concentration-conundrum
+
+#########################
+# Contact
+#########################
+
+**Jake M. Martin** <br>
+
+**Email**: jake.martin@deakin.edu.au (or jake.martin.research@gmail.com) <br>
+
+**Web**: jake.martin.org <br>
+
+**GitHub**: https://github.com/JakeMartinResearch <br>
+
+#########################
+# Knit settings 
+#########################
+
+Here we define our Knit settings, to make the output more user friendly, and to cache output for faster knitting.
+
+```{r setup}
+#kniter seetting
+knitr::opts_chunk$set(
+message = FALSE,
+warning = FALSE, # no warnings
+cache = TRUE,# Cacheing to save time when kniting
+tidy = TRUE
+)
+```
+
+#########################
+# Required packages
+#########################
+
+These are the R packages required for this script. You will need to install a package called pacman to run the p_load function. 
+
+```{r, message=FALSE, results='hide'}
+# this installs and load packages
+# need to install pacman
+pacman::p_load("ggplot2", 
+               "ggthemes", 
+               "ggfortify",
+               "ggridges",
+               "gghalves",
+               "ggExtra",
+               "plotly",
+               "colorspace", 
+               "ggrepel", 
+               "ggdist",
+               "gt", # data visualisation
+               
+               "data.table",
+               "stringr",
+               "tidyverse", 
+               "janitor", 
+               "readxl", 
+               "broom" # data tidy
+                       )
+```
+
+
+#########################
+# Custom functions 
+#########################
+
+Here are some custom function used within this script. <br>
+
+*tidy_string* : To tidy the names in UBA database
+
+```{r}
+tidy_string <- function(string) {
+  string %>%
+    stringr::str_remove_all("[-()]") %>%  # Remove unwanted characters
+    stringr::str_replace_all("\\s{2,}", " ") %>%  # Replace double spaces with a single space
+    stringr::str_replace_all("\\s", "_") %>%  # Replace spaces with underscores
+    stringr::str_replace_all("[/]", "_") %>% 
+    stringr::str_replace_all("[µ]", "u") %>% 
+    tolower()
+}
+```
+
+*make_na* : Takes a sting and replaces with NA based on specification in the UBA database (e.g. -9999, [-], -, or "")
+
+```{r}
+make_na <- function(string) {
+    dplyr::case_when(
+      string == -9999 ~ NA,
+      string == "[-]" ~ NA,
+      string == "-" ~ NA,
+      string == "" ~ NA,
+      TRUE ~ string
+      )
+}
+```
+
+*sentence_case* : Makes a string into sentence case
+
+```{r}
+sentence_case <- function(text) {
+  text <- tolower(text) # Convert the entire text to lowercase
+  text <- sub("^(\\s*\\w)", "\\U\\1", text, perl = TRUE) # Capitalise the first letter
+  return(text)
+}
+```
+
+
+#########################
+# Directories 
+#########################
+
+Here we define the directories for the project. We also make the output directories if they don't already exist. <br>
+
+## Input
+
+These are the input directors for the databases used in this project. <br>
+
+**input_wd**: Directory for the input data
+
+```{r}
+wd <- getwd() # getwd tells us what the current wd is, we are using this to drop it in a variable called wd
+input_wd <- paste0(wd, "./input-data") # creates a variable with the name of the wd we want to use
+```
+
+
+## Output
+
+These are output directories for data and figures.<br>
+
+**output_wd**: Directory for the output data
+
+```{r, echo = TRUE, results = "hide"}
+wd <- getwd() # getwd tells us what the current wd is, we are using this to drop it in a variable called wd
+output_wd <- paste0(wd, "./output-data") # creates a variable with the name of the wd we want to use
+ifelse(!dir.exists("output-data"), dir.create("output-data"), "Folder already exists")
+```
+
+**output_fig_wd**: Directory for the output figures
+
+```{r, echo = TRUE, results = "hide"}
+output_fig_wd <- paste0(wd, "./output-fig")
+ifelse(!dir.exists("output-fig"), dir.create("output-fig"), "Folder already exists")
+```
+
+
+#########################
+# Databases 
+#########################
+
+In this section of the script we will import the different databases and tidy them. <br>
+
+## EIPAAB
+
+Import the EIPAAB database, there are 901 articles and 1739 rows of data.
+
+```{r}
+setwd(input_wd)
+EIPAAB <- read.csv("EIPAAB-database.csv")
+
+articles <- EIPAAB %>% 
+  dplyr::distinct(article_id) %>% 
+  nrow(.)
+
+data_points <- EIPAAB %>% 
+  nrow(.)
+
+print(paste0("n articles = ", articles, "; n data rows = ", data_points))
+```
+
+### Filtering
+
+We are **filter** the EIPAAB database for studies with an Environmental motivation and studies with concentrations reported in mass per volume of water (ug/L). We now have 463 articles and 767 rows of data (we removed 438 articles and 972 rows of data).
+
+```{r}
+EIPAAB <- EIPAAB %>% 
+  dplyr::mutate(compound_min_dose_unit_std = tidy_string(compound_min_dose_unit_std),
+                compound_max_dose_unit_std = tidy_string(compound_max_dose_unit_std)) %>% 
+  dplyr::filter(study_motivation == "Environmental", 
+                compound_min_dose_unit_std == "ug_l", compound_max_dose_unit_std == "ug_l") %>% 
+  dplyr::mutate(compound_name = tolower(compound_name),  
+                compound_pubchem_name = tolower(compound_pubchem_name))
+
+articles <- EIPAAB %>% 
+  dplyr::distinct(article_id) %>% 
+  nrow(.)
+
+data_points <- EIPAAB %>% 
+  nrow(.)
+
+print(paste0("Filtered: n articles = ", articles, "; n data rows = ", data_points))
+```
+<br>
+There are **184 compounds** in this filtered dataset.
+
+```{r}
+eipaab_cas_list <- EIPAAB %>% 
+  dplyr::distinct(compound_cas) %>% 
+  pull(compound_cas)
+
+eipaab_name_list <- EIPAAB %>% 
+  dplyr::distinct(compound_name) %>% 
+  pull(compound_name)
+
+eipaab_pubchem_name_list <- EIPAAB %>% 
+  dplyr::distinct(compound_pubchem_name) %>% 
+  pull(compound_pubchem_name)
+
+eipaab_cas_n <- length(eipaab_cas_list)
+eipaab_name_n <- length(eipaab_name_list)
+eipaab_pubchem_name_n <- length(eipaab_pubchem_name_list)
+
+print(paste0("n CAS numbers = ", eipaab_cas_n, "; n compound names = ", eipaab_name_n, "; n PubChem compound names = ", eipaab_pubchem_name_n))
+```
+
+*Note: One of the compounds must have two pubchem names, this isn't an issue, we will use all identifiers to search the environmental occurrence databases*
+
+### EIPAAB tidy
+
+Here we will make a new EIPAAB data frame, **eipaab_tidy**, that we can combind with the other databases more easily. I have added a few new columns so that we can combined it with the environmental occurrence data matrix_group, n_units and source. I have also **filtered** to use only the minimum tested concentration. We have formatted the data so both could be included.
+
+```{r}
+eipaab_tidy <- EIPAAB %>% 
+  dplyr::select(unique_row_id, compound_cas, compound_name, compound_pubchem_name, compound_min_dose_std, compound_max_dose_std, year, title) %>% 
+    pivot_longer(
+    cols = c(compound_min_dose_std, compound_max_dose_std),
+    names_to = "concentration_type",
+    values_to = "value"
+  ) %>%
+  mutate(concentration_type = case_when(
+    concentration_type == "compound_min_dose_std" ~ "min",
+    concentration_type == "compound_max_dose_std" ~ "max",
+    TRUE ~ NA
+  ),
+  matrix = "test",
+  matrix_group = "test",
+  n_units = 1,
+  n_units_est = 1,
+  source = "eipaab") %>% 
+  dplyr::filter(concentration_type == "min") %>% 
+  dplyr::rename(reference = title) %>% 
+  dplyr::select(source, compound_cas, compound_name, concentration_type, value, matrix_group, matrix, n_units, n_units_est, compound_pubchem_name, year, reference, unique_row_id)
+```
+
+
+## UBA
+
+Import the UBA database, tidy the column names and data. This is the whole UBA database.
+
+```{r}
+setwd(input_wd)
+
+column_fix_na <- c("sampling_period_start", "sampling_period_end", "number_of_samples_analysed", "unit_original", "unit_standard", "unit_lo_d", "unit_lo_d_standardized", "lo_d_standardized", "lo_d_limit_of_detection", "sampling_province")
+
+column_fix_chr <- c("matrix", "unit_original", "unit_standard", "unit_lo_d", "unit_lo_d_standardized", "statistics")
+
+UBA <- read_excel("pharms-uba_v3_2021_0.xlsx", skip = 2) %>% 
+  janitor::clean_names() %>%
+  dplyr::mutate(name_of_analyte = tolower(name_of_analyte),
+                across(all_of(column_fix_na), make_na),
+                across(all_of(column_fix_chr), tidy_string),
+                cas_number = str_replace_all(cas_number, "–", "-"))
+```
+
+
+### Filtering
+
+I am **filtering** for only measures in unit standard of ug/L because we are only comparing water-borne concentrations (i.e. in mass per volume of water). I am also only selecting matrix of interest, and re-allocating the different matrix into broader categories. The matrix of interest that we have selected for this investigation are: <br> 
+
+***Surface waters***: "surface_water_river_stream", "surface_water_unspecific", "surface_water_lake", "surface_water_sea_or_ocean", "surface_water_aquaculture", "surface_water_pond" <br>
+
+***WWTP effluent***: "wwtp_effluent_treated", "wwtp_secondary_effluent", "wwtp_primary_effluent", "wwtp_desinfection_effluent" <br>
+
+
+```{r}
+matrix_surfacewater <- c("surface_water_river_stream", "surface_water_unspecific", "surface_water_lake", "surface_water_sea_or_ocean", "surface_water_aquaculture", "surface_water_pond")
+
+matrix_wwtp_effluent <- c("wwtp_effluent_treated", "wwtp_secondary_effluent", "wwtp_primary_effluent", "wwtp_desinfection_effluent")
+
+matrix_of_intrest <- c(matrix_surfacewater, matrix_wwtp_effluent)
+
+
+UBA <-  UBA %>% 
+  dplyr::filter(unit_standard == "ug_l") %>% 
+  dplyr::filter(matrix %in% matrix_of_intrest) %>% 
+  dplyr::mutate(matrix_group = case_when(
+    matrix %in% matrix_surfacewater ~ "surfacewater",
+    matrix %in% matrix_wwtp_effluent ~ "effluent",
+    TRUE ~ NA
+  ))
+```
+
+<br>
+The UBA database has measured values as single values or summary statics from a given study. We will highlight this by allocating the different statistics into to measures of central tendency (**central**: "average", "mean", "median", "timeweightedaverage_concentration") vs single values (**single**: "single_value", "single_value_of_a_composite_sample"). There are also summary values such as minimum and maximum, which we will allocate to **"other"**, we will **remove the 'other' data from the database**, and only use the measures of central tendency and single values for concentration comparisons and occurrence. 
+
+```{r}
+statistics_central_tendency <- c("average", "mean", "median", "timeweightedaverage_concentration")
+statistics_single <- c("single_value", "single_value_of_a_composite_sample")
+
+statistics_select <- c(statistics_single, statistics_central_tendency)
+
+UBA <- UBA %>% 
+  dplyr::mutate(statistics_group = case_when(
+    statistics %in% statistics_central_tendency ~ "central",
+    statistics %in% statistics_single ~ "single",
+    TRUE ~ "other"
+  )) %>% 
+  dplyr::filter(statistics_group != "other")
+```
+
+There are **888** distinct CAS numbers in the UBA database and **938** distinct compound names and 122,929 data points for the matrix we are potentially interested in.
+
+```{r}
+uba_cas_n <- UBA %>% 
+  dplyr::distinct(cas_number) %>% 
+  nrow(.)
+
+uba_name_n <- UBA %>% 
+  dplyr::distinct(name_of_analyte) %>% 
+  nrow(.)
+
+data_points <- UBA %>% nrow()
+
+print(paste0("n CAS numbers = ", uba_cas_n, "; n compound names = ", uba_name_n, "; n data points ", data_points))
+```
+
+### UBA tidy
+
+Here we are making a compare data frame to our other databases 
+
+```{r}
+uba_tidy <- UBA %>% 
+  dplyr::select(id, 
+                name_of_analyte, 
+                cas_number, 
+                matrix, 
+                mec_standardized, 
+                literature_citation, 
+                matrix_group, 
+                statistics_group, 
+                number_of_samples_analysed,
+                sampling_period_end,
+                ) %>% 
+  dplyr::rename(compound_name = name_of_analyte,
+                compound_cas = cas_number,
+                unique_row_id = id, 
+                concentration_type = statistics_group, 
+                value = mec_standardized, 
+                n_units = number_of_samples_analysed,
+                year = sampling_period_end,
+                reference = literature_citation) %>% 
+  dplyr::mutate(n_units_est = if_else(is.na(n_units), 1, n_units),
+                compound_pubchem_name = NA,
+                unique_row_id = as.character(unique_row_id),
+                source = "uba") %>% 
+  dplyr::select(source, compound_cas, compound_name, concentration_type, value, matrix_group, matrix, n_units, n_units_est, compound_pubchem_name, year, reference, unique_row_id)
+```
+
+
+## Wilkson
+
+Here we import the complete **Wilkson dataset S4** and tidy this dataframe. We have removed all the extra headings, to just have compound name, sample number, and the site headers. We have also filled down compound name.
+
+```{r}
+setwd(input_wd)
+wilkson <- read_excel("pnas.2113947119.sd04.xlsx", skip = 5) %>% 
+  janitor::clean_names() %>% 
+  dplyr::slice(6:1103) %>% 
+  dplyr::select(-x140) %>% 
+  dplyr::rename(compound_name = x1, survey_n = sampling_campaign) %>% 
+  dplyr::mutate(compound_name = tolower(compound_name)) %>% 
+  tidyr::fill(compound_name)
+```
+
+Changing the data to long formate. We will remove empty rows, change the concentration results to numeric, by replacing ND with 0 and removing "e" for estimated values. Lastly, we will change the value to ug/L by dividing by 1000 (it's given in ng/L).
+
+```{r}
+wilkson_tidy <- wilkson %>%
+  tidyr::pivot_longer(
+    cols = -c(compound_name, survey_n), # Columns to keep fixed
+    names_to = "site",            # Column to store variable names
+    values_to = "value"                # Column to store values
+  ) %>%
+  dplyr::mutate(
+    sample_id = paste(site, survey_n, sep = "_"),
+    value = str_remove_all(value, "e"),
+    value = case_when(
+      is.na(value) ~ NA,
+      value == "ND" ~ "0",
+      TRUE ~ value
+    ),
+    value = as.numeric(value)/1000
+  ) %>% 
+  dplyr::filter(!is.na(value)) %>% 
+  dplyr::mutate(unique_row_id = paste0(sample_id, "_", compound_name),
+                concentration_type = "single",
+                matrix = "river",
+                matrix_group = "surfacewater",
+                year = 2019, # most samples were collected in 2019 for the project 
+                n_units = 1,
+                source = "wilkson",
+                n_units_est = 1,
+                reference = "Wilkson et al 2022",
+                compound_pubchem_name = NA,
+                compound_cas = NA) %>%
+  dplyr::select(-sample_id, -survey_n, -site)  %>% 
+  dplyr::select(source, compound_cas, compound_name, concentration_type, value, matrix_group, matrix, n_units, n_units_est, compound_pubchem_name, year, reference, unique_row_id)
+```
+
+
+The Wilkson database has **61 pharmaceuticals** and 64,132 samples
+
+```{r}
+compounds <- wilkson_tidy %>% 
+  dplyr::distinct(compound_name) %>% 
+  nrow(.)
+
+data_points <- wilkson_tidy %>%  nrow(.)
+
+print(paste0("compound names = ", compounds, "; n data points ", data_points))
+```
+
+
+### Filtering
+
+We **do not need to filter** the Wilkson database, all analytes are pharmaceuticals, values are in mass per volume of water, and all samples are from surface waters.
+
+
+## NORMAN
+
+This part of the code relates to the NORMAN EMPODAT Database - Chemical Occurrence Data (https://www.norman-network.com/nds/empodat/chemicalSearch.php?s=new). This database was searched for all compounds, all countries, all years, all data sources, all organisations, all laboratories, for Surface water (Sea water, River water, Lake water, Transitional water, Coastal water, Territorial (marine) water, Reservoirs, Others) and Waste water (Urban, Industrial, Municipal, Other) Ecosystems/matrices on 19-12-2024 <br>
+
+The complete surface water NORMAN dataset is very large (24.2 GB) so I have not uploaded it to GitHub, as a result I have hashed out the below code that was used to import and tidy the complete data set. In a later step I have made a new filtered CSV file called "norman_pham_Surface_water_2024-12-19-214810.csv" which has only compounds of interest. This data file is also to large for a standard remote git repository, is uploaded separately on the OSF framework please download it from here <br>
+
+#*LINK*
+
+```{r}
+# setwd(input_wd)
+# norman_surface_complete <- fread("Surface_water_2024-12-19-214810.csv", skip = 1) %>%
+#   clean_names() %>%
+#   slice(2:n()) %>%
+#   select(sample_matrix, individual_compound, cas_no, norman_sus_dat_id, concentration_data, concentration, value, unit, v34, organisation, references_literature_1) %>%
+#   rename(year = v34, compound_name = individual_compound, compound_cas = cas_no, concentration_type = concentration_data, reference = references_literature_1) %>%
+#   mutate(compound_name = tolower(compound_name),
+#          compound_cas = str_remove_all(compound_cas, "CAS_RN: "),
+#          compound_cas = str_replace_all(compound_cas, "–", "-"),
+#          matrix_group = "surfacewater",
+#          source = "norman",
+#          concentration_type = case_when(concentration_type == "Individual results" ~ "single",
+#                                         concentration_type == "Aggregate data" ~ "central",
+#                                         TRUE ~ concentration_type)
+#          )
+```
+
+There's 3909 compound CAS numbers (4003 compound names), the earliest record is 1998 and latest is 2020. In total there are 58811806 rows of data (i.e. greater than 58,811,806 samples).
+
+```{r}
+# norman_surface_summary <- norman_surface_complete %>% 
+#   reframe(n_rows = nrow(.),
+#           n_compound_names = length(unique(compound_name)),
+#           n_compound_cas = length(unique(compound_cas)),
+#           min_year = min(year, na.rm = TRUE),
+#           max_year = max(year, na.rm = TRUE)
+#             )
+# norman_surface_summary
+```
+
+
+Now doing the same for the waste water data
+
+```{r}
+# setwd(input_wd)
+# norman_waste_complete <- fread("Waste_water_2025-01-09-222202.csv", skip = 1) %>%
+#   clean_names() %>%
+#   slice(2:n()) %>%
+#   select(sample_matrix, individual_compound, cas_no, norman_sus_dat_id, concentration_data, concentration, value, unit, v34, organisation, references_literature_1) %>%
+#   rename(year = v34, compound_name = individual_compound, compound_cas = cas_no, concentration_type = concentration_data, reference = references_literature_1) %>%
+#   mutate(compound_name = tolower(compound_name),
+#          compound_cas = str_remove_all(compound_cas, "CAS_RN: "),
+#          compound_cas = str_replace_all(compound_cas, "–", "-"),
+#          matrix_group = "waste water",
+#          source = "norman",
+#          concentration_type = case_when(concentration_type == "Individual results" ~ "single",
+#                                         concentration_type == "Aggregate data" ~ "central",
+#                                         TRUE ~ concentration_type)
+#          )
+```
+
+There's 2765 compound CAS numbers (2823 compound names), the earliest record is 2002 and latest is 2019 In total there are 252210 rows of data (i.e. greater than 252,210 samples).
+
+```{r}
+# norman_waste_summary <- norman_waste_complete %>%
+#   reframe(n_rows = nrow(.),
+#           n_compound_names = length(unique(compound_name)),
+#           n_compound_cas = length(unique(compound_cas)),
+#           min_year = min(year, na.rm = TRUE),
+#           max_year = max(year, na.rm = TRUE)
+#             )
+# norman_waste_summary
+```
+
+### Filtering
+
+We will filter this database to only include compound numbers and case from UBA, EIPAAB and Wilkson (i.e. any pharmaceuticals identified across these other three databases). The NORMAN database has all kinds of analytes not just pharmaceuticals, and they are not allocated into compound types/classes, so there is no easy way to independent filter NORMAN for pharmaceutical only. <br>
+
+I have also hashed out parts of this code because we do not want to re-run filtering the the complete NORMAN database.
+
+```{r}
+eipaab_name_list_pub <- eipaab_tidy %>%
+  dplyr::distinct(compound_pubchem_name) %>%
+  rename(compound_name = compound_pubchem_name)
+
+eipaab_name_list <- eipaab_tidy %>%
+  dplyr::distinct(compound_name) %>%
+  rbind(., eipaab_name_list_pub) %>%
+  dplyr::distinct(compound_name)  %>%
+  dplyr::pull()
+
+eipaab_cas_list <- eipaab_tidy %>%
+  dplyr::distinct(compound_cas)  %>%
+  dplyr::pull()
+
+uba_cas_list <- uba_tidy %>%
+  dplyr::distinct(compound_cas)  %>%
+  dplyr::pull()
+
+uba_name_list <- uba_tidy %>%
+  dplyr::distinct(compound_name)  %>%
+  dplyr::pull()
+
+wilkson_name_list <- wilkson_tidy %>%
+  dplyr::distinct(compound_name) %>%
+  dplyr::pull()
+
+all_names_list <- unique(c(eipaab_name_list, uba_name_list, wilkson_name_list))
+
+all_cas_list <- unique(c(eipaab_cas_list, uba_cas_list))
+```
+
+<br>
+Here we filter the norman surface water data set for these compounds
+
+```{r}
+# norman_pham_surface <- norman_surface_complete %>% 
+#   dplyr::filter(compound_name %in% all_names_list | compound_cas %in% all_cas_list)
+```
+
+<br>
+Here we filter the norman wate water data set for these compounds
+
+```{r}
+# norman_pham_waste <- norman_waste_complete %>%
+#   dplyr::filter(compound_name %in% all_names_list | compound_cas %in% all_cas_list)
+```
+
+<br>
+Writing these new file to CSV so we can load it from here.
+
+```{r}
+setwd(input_wd)
+#write.csv(norman_pham_surface, "norman_pham_Surface_water_2024-12-19-214810.csv", row.names = FALSE)
+#write.csv(norman_pham_waste, "norman_pham_Waste_water_2025-01-09-222202.csv", row.names = FALSE)
+```
+
+<br>
+Import the file
+
+```{r}
+setwd(input_wd)
+norman_pham_surface <- read.csv("norman_pham_Surface_water_2024-12-19-214810.csv")
+norman_pham_waste <- read.csv("norman_pham_Waste_water_2025-01-09-222202.csv")
+norman_pham <- rbind(norman_pham_surface, norman_pham_waste)
+```
+
+<br>
+There are 657 compound CAS numbers, 674 compound names and 2,422,683 data points 
+
+```{r}
+norman_pham_cas_n <- norman_pham %>%
+  dplyr::distinct(compound_cas) %>%
+  nrow(.)
+
+norman_pham_name_n <- norman_pham %>%
+  dplyr::distinct(compound_name) %>%
+  nrow(.)
+
+data_points <- norman_pham %>% nrow()
+
+print(paste0("n CAS numbers = ", norman_pham_cas_n, "; n compound names = ", norman_pham_name_n, "; n data points ", data_points))
+```
+
+### NORMAN tidy
+
+```{r}
+norman_tidy <- norman_pham %>% 
+    dplyr::mutate(n_units = NA, 
+                n_units_est = if_else(concentration_type == "central", 2, 1),
+                unique_row_id = paste0(norman_sus_dat_id, "_", compound_name),
+                compound_pubchem_name = NA,
+                matrix = case_when(
+                  sample_matrix == "Surface water - River water" ~ "surface_water_river_stream",
+                  sample_matrix == "Surface water - Lake water" ~ "surface_water_lake",
+                  sample_matrix == "Surface water - Sea water" ~ "surface_water_sea_or_ocean",
+                  sample_matrix == "Surface water - Territorial (marine) water" ~ "surface_water_sea_or_ocean",
+                  sample_matrix == "Surface water - Transitional water" ~ "surface_water_transitional_water",
+                  sample_matrix == "Surface water - Coastal water" ~ "surface_water_sea_or_ocean",
+                  sample_matrix == "Surface water - Other" ~ "surface_water_unspecific",
+                  sample_matrix == "Surface water - Reservoirs" ~ "surface_water_reservoirs",
+                  sample_matrix == "Surface water - Reservoirs" ~ "surface_water_unspecific",
+                  sample_matrix == "Waste water - Industrial" ~ "wwtp_industrial_effluent",
+                  sample_matrix == "Waste water - Municipal" ~ "wwtp_municipal_effluent",
+                  sample_matrix == "Waste water - Other" ~ "wwtp_other_effluent",
+                  sample_matrix == "Waste water - Urban" ~ "wwtp_urban_effluent",
+                  TRUE ~ "ERROR"
+                )) %>%
+  dplyr::select(source, compound_cas, compound_name, concentration_type, value, matrix_group, matrix, n_units, n_units_est, compound_pubchem_name, year, reference, unique_row_id)
+```
+
+###################
+# All databases
+###################
+
+## Combind the 4 databases
+
+Here we combined all databases
+
+```{r}
+all_databases <- bind_rows(eipaab_tidy, uba_tidy, wilkson_tidy, norman_tidy)
+```
+
+
+## Compound identifies 
+
+In this section we will fix compound synonyms, to make sure names and CAS are consistent across all databases. <br>
+
+First we will identify CAS numbers with multiple names. 
+
+```{r}
+cas_with_two_names_list <- all_databases %>% 
+  dplyr::filter(!is.na(compound_cas)) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::reframe(names = length(unique(compound_name))) %>% 
+  dplyr::filter(names > 1) %>% 
+  dplyr::pull(compound_cas)
+
+paste0("There are ", length(cas_with_two_names_list), " CAS with more then one compound name")
+```
+
+<br>
+We will first reassign them based on the CAS in EIPAAB. Of the 122 CAS with two names, 22 are present in EIPAAB. We will use these to correct the name.
+
+```{r}
+eipaab_name_adjust <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::filter(compound_cas %in% cas_with_two_names_list) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(compound_cas, compound_name) %>% 
+  dplyr::rename(compound_name_corrected = compound_name)
+
+all_databases <- all_databases %>% 
+  dplyr::left_join(., eipaab_name_adjust, by = "compound_cas") %>% 
+  dplyr::mutate(compound_name_corrected = if_else(is.na(compound_name_corrected), compound_name, compound_name_corrected))
+```
+
+<br>
+That fixed 22, but there are still 100 CAS with multiple compound names
+
+```{r}
+cas_with_two_names_list <- all_databases %>% 
+  dplyr::filter(!is.na(compound_cas)) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::reframe(names = length(unique(compound_name_corrected))) %>% 
+  dplyr::filter(names > 1) %>% 
+  dplyr::pull(compound_cas)
+
+paste0("There are ", length(cas_with_two_names_list), " CAS with more then one compound name")
+```
+
+<br>
+Let's select only one of the compound names associated with that CAS number. We will use the most common of the duplicate names.
+
+```{r}
+cas_with_two_names <- all_databases %>% 
+  dplyr::filter(compound_cas %in% cas_with_two_names_list) %>% 
+  dplyr::group_by(compound_cas, compound_name) %>% 
+  dplyr::reframe(n = length(compound_cas)) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(compound_cas, compound_name) %>% 
+  dplyr::rename(compound_name_select = compound_name)
+
+all_databases <- all_databases %>% 
+  dplyr::left_join(., cas_with_two_names, by = "compound_cas") %>% 
+  dplyr::mutate(compound_name_corrected = if_else(is.na(compound_name_select), compound_name_corrected, compound_name_select)) %>% 
+  dplyr::select(-compound_name_select)
+```
+
+<br>
+This fixed the CAS duplicate issue.
+
+```{r}
+cas_with_two_names_list <- all_databases %>% 
+  dplyr::filter(!is.na(compound_cas)) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::reframe(names = length(unique(compound_name_corrected))) %>% 
+  dplyr::filter(names > 1) %>% 
+  dplyr::pull(compound_cas)
+
+paste0("There are ", length(cas_with_two_names_list), " CAS with more then one compound name")
+```
+
+<br>
+Now let's add missing CAS and match CAS to EIPAAB.
+
+<br>
+There's 29 compounds in UBA with missing CAS, and 61 in Wilkinson.
+
+```{r}
+all_databases %>% 
+  dplyr::filter(is.na(compound_cas)) %>% 
+  dplyr::group_by(compound_name_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::reframe(n = length(source))
+```
+
+We will use the compound names from EIPAAB to add missing CAS numbers
+
+```{r}
+eipaab_idenifiers <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::select(compound_cas, compound_name_corrected) %>% 
+  dplyr::group_by(compound_cas, compound_name_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::rename(compound_cas_corrected = compound_cas)
+
+all_databases <- all_databases %>% 
+  dplyr::left_join(., eipaab_idenifiers, by = "compound_name_corrected") %>% 
+  dplyr::mutate(compound_cas_corrected = if_else(is.na(compound_cas_corrected), compound_cas, compound_cas_corrected))
+```
+
+<br>
+Still some with missing CAS
+
+```{r}
+all_databases %>% 
+  dplyr::filter(is.na(compound_cas_corrected)) %>% 
+  dplyr::group_by(compound_name_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::reframe(n = length(source))
+```
+
+<br> 
+Adding CAS with Pubchem name
+
+```{r}
+eipaab_idenifiers_2 <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::select(compound_cas, compound_pubchem_name) %>% 
+  dplyr::group_by(compound_cas, compound_pubchem_name) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::rename(compound_cas_corrected_2 = compound_cas,
+                compound_name_corrected = compound_pubchem_name)
+
+all_databases <- all_databases %>% 
+  dplyr::left_join(., eipaab_idenifiers_2, by = "compound_name_corrected") %>% 
+  dplyr::mutate(compound_cas_corrected = if_else(is.na(compound_cas_corrected_2), compound_cas_corrected, compound_cas_corrected_2)) %>% 
+  dplyr::select(-compound_cas_corrected_2)
+```
+
+<br>
+There's still 47 compounds in database that don't have a CAS, 28 from UBA and 19 from Wilkson.
+
+```{r}
+all_databases %>% 
+  dplyr::filter(is.na(compound_cas_corrected)) %>% 
+  dplyr::group_by(compound_name_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::reframe(n = length(source))
+```
+
+<br>
+Here I have mainly added CAS from PubChem where available for these compound names. 
+
+```{r}
+all_databases <- all_databases %>% 
+  dplyr::mutate(compound_cas_corrected = case_when(
+    compound_name_corrected == "alpha-apo-oxytetracycline" ~ "2869-27-4",
+    compound_name_corrected == "artemisinin" ~ "63968-64-9",
+    compound_name_corrected == "cloxacillin" ~ "61-72-3",
+    compound_name_corrected == "cotinine" ~ "486-56-6",
+    compound_name_corrected == "erythrohydrobupropion" ~ "99102-04-2",
+    compound_name_corrected == "fluconazole" ~ "86386-73-4",
+    compound_name_corrected == "hydrocodone" ~ "125-29-1",
+    compound_name_corrected == "itraconazole" ~ "84625-61-6",
+    compound_name_corrected == "ketotifen" ~ "34580-13-7",
+    compound_name_corrected == "loratadine" ~ "79794-75-5",
+    compound_name_corrected == "miconazole" ~ "22916-47-8",
+    compound_name_corrected == "nevirapine" ~ "129618-40-2",
+    compound_name_corrected == "norethisterone" ~ "68-22-4",
+    compound_name_corrected == "norfluoxetine" ~ "83891-03-6",
+    compound_name_corrected == "oseltamivir" ~ "196618-13-0",
+    compound_name_corrected == "pregabalin" ~ "148553-50-8",
+    compound_name_corrected == "raloxifene" ~ "84449-90-1",
+    compound_name_corrected == "salbutamol" ~ "18559-94-9",
+    compound_name_corrected == "sitagliptin" ~ "486460-32-6",
+    compound_name_corrected == "thiabendazole" ~ "148-79-8",
+    compound_name_corrected == "triamterene" ~ "396-01-0",
+    TRUE ~ compound_name_corrected
+  ))
+```
+
+<br>
+In total, there are 950 unique compound names that we will consider for this analysis.
+
+```{r}
+all_databases %>% 
+  dplyr::reframe(n_compounds = length(unique(compound_name_corrected)))
+```
+
+<br>
+This includes 184 from EIPAAB, 673 in Norman, 910 in UBA and 61 in Wilkson.
+
+```{r}
+all_databases %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::reframe(n_compounds = length(unique(compound_name_corrected)))
+```
+
+
+#####################
+# Analysis 
+####################
+
+## Occurrence
+
+Let's see if there is a correlation between the sample occurrence in the environmental data and EIPAAB, as well as the number of positive environmental detections and EIPAAB occurrence. <br>
+
+Here we make a summary data frame for each compound, **eipaab_uba_counts**, that includes the number of occurrences in each database, the rank occurrence, the number of positive detections in the UBA database (based on single samples, not summary statistics), the rank order of detections, the percentage of positive detections in UBA (only in cases of more then 50 sample units), the rank order of percentage of positive detection, the relative rank order of environmental detections in UBA versus occurrence in EIPAAB (see Table 2). <br>
+
+```{r}
+all_databases %>% 
+  dplyr::distinct(concentration_type)
+```
+
+Here I make a summary data frame, looking at the occurrence and detection rate of compounds in surface waters
+
+```{r}
+all_surfacewater <- all_databases %>% 
+  dplyr::filter(source != "eipaab", matrix_group == "surfacewater") %>% 
+  dplyr::group_by(compound_name_corrected) %>% 
+  dplyr::reframe(combind_samples = sum(n_units_est, na.rm = TRUE),
+                 combind_rows = length(unique_row_id),
+                 combind_singles = sum(concentration_type == "single", na.rm = TRUE),
+                 combind_detection = sum(value > 0, na.rm = TRUE),
+                 combind_detection_log = if_else(combind_detection > 0, log(combind_detection), combind_detection),
+                 combind_single_detection = sum(value > 0 & concentration_type == "single", na.rm = TRUE),
+                 combind_percent_detection = if_else(combind_singles > 10, (combind_single_detection/combind_singles)*100, NA)
+                 ) %>% 
+  ungroup() %>% 
+  dplyr::mutate(
+    combind_rank_samples = rank(-combind_samples, ties.method = "max", na.last = "keep"),
+    combind_rank_detection = rank(-combind_detection, ties.method = "max", na.last = "keep"),
+    combind_rank_detection_percent = rank(-combind_percent_detection, ties.method = "max", na.last = "keep")
+  )
+```
+
+There's a total of 870 compound names in the surface water data
+
+```{r}
+all_surfacewater %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  nrow(.)
+```
+
+Making occurrence count in EIPAAB
+
+```{r}
+all_surfacewater_list <- all_surfacewater %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::pull(compound_name_corrected)
+
+eipaab_counts <- all_databases %>% 
+  dplyr::filter(source == "eipaab" & compound_name_corrected %in% all_surfacewater_list) %>% 
+  dplyr::group_by(compound_name_corrected) %>% 
+  dplyr::reframe(eipaab_n = sum(n_units_est, na.rm = TRUE),
+                 eipaab_n_log = log(eipaab_n)) %>% 
+  ungroup() %>% 
+  dplyr::mutate(eipaab_rank = rank(-eipaab_n, ties.method = "max", na.last = "keep")) %>% 
+  tidyr::complete(., compound_name_corrected)
+```
+
+Combining the data together
+
+```{r}
+test_surfacewater <- left_join(all_surfacewater, eipaab_counts, by = "compound_name_corrected") %>% 
+  dplyr::mutate(rank_samples_dif = eipaab_rank-combind_rank_samples,
+                rank_detection_dif = eipaab_rank-combind_rank_detection,
+                rank_detection_percent_dif = eipaab_rank-combind_rank_detection_percent
+                ) %>% 
+  dplyr::arrange(desc(rank_detection_dif), desc(combind_detection)) %>% 
+  dplyr::mutate(rank_detection_dif = 1:nrow(.)) %>% 
+  dplyr::arrange(desc(rank_detection_percent_dif), desc(combind_percent_detection)) %>% 
+  dplyr::mutate(rank_detection_percent_dif = 1:nrow(.))
+
+uba_rank_detection_max <- test_surfacewater %>% 
+  dplyr::arrange(desc(combind_rank_detection)) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::pull(combind_rank_detection)
+
+uba_rank_detection_percent_max <- test_surfacewater %>% 
+  dplyr::arrange(desc(combind_rank_detection_percent)) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::pull(combind_rank_detection_percent)
+```
+
+
+#### Table 2
+
+**Table 2:** the 10 most common compounds in EIPAAB versus occurrence and detection frequency in UBA surface waters
+UBA samples
+```{r}
+test_surfacewater %>% 
+  dplyr::arrange(desc(eipaab_n)) %>% 
+  dplyr::slice(1:10) %>% 
+  dplyr::mutate(compound_name = sentence_case(compound_name_corrected),
+                combind_percent_detection = round(combind_percent_detection,2)) %>% 
+  dplyr::select(compound_name, eipaab_n, combind_samples, combind_detection, combind_percent_detection, eipaab_rank, combind_rank_detection, combind_rank_detection_percent) %>% 
+  dplyr::rename(Name = compound_name, "EIPAAB tests" = eipaab_n, "Samples" = combind_samples, "All detections" = combind_detection, "Precent single detections (%)" = combind_percent_detection, "EIPAAB rank (1–870)" = eipaab_rank,
+                "Rank total detections (1–870)" = combind_rank_detection, "Rank  percent detections (1–713)*" = combind_rank_detection_percent) %>% 
+  gt() %>% 
+    fmt_number(
+    columns = c("Samples", "All detections"), 
+    decimals = 0
+    ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+<br>
+*Note: the rank for total percentage detections does not range from 1 to the number of compounds (i.e. 1–713) because percentage detections were only calculated where the number of single samples are greater than ten* 
+
+
+### Results
+
+#NOTE: change to GLM
+There's massive skew in occurrence for specific compounds in both the UBA and EIPAAB database. There is generally, a positive correlation between the total detections in the UBA and occurrence in the EIAPAAB database (Spearman's rank correlation: rho = 0.46, p < 0.001; Fig 1).With that said, there are a number of compounds that occurrence frequently in the UBA that are not well represented in the EIPAAB database see below. These could be sensible targets for future behavioural tests. <br>
+
+Spearman's rank correlation between the number of detections in UBA and occurrence in the EIAPAAB database.
+
+
+```{r}
+cor_detection_results <- cor.test(test_surfacewater$combind_detection, test_surfacewater$eipaab_n, method = "spearman",
+         exact = NULL, conf.level = 0.95, continuity = FALSE)
+
+detection_effect_estimate <- cor_detection_results$estimate
+detection_effect_p <- cor_detection_results$p.value
+
+cor_detection_results
+```
+<br>
+Spearman's rank correlation between the percentage of detections and the occurrence in EIPAAB. Here we have used only single meassures and compounds that have more then ten samples in the UBA databases. The correlation is not statistically significant. 
+
+```{r}
+postive_cor_results <- cor.test(test_surfacewater$combind_percent_detection, test_surfacewater$eipaab_n, method = "spearman",
+         exact = NULL, conf.level = 0.95, continuity = FALSE)
+
+postive_cor_results
+
+postive_effect_estimate <- postive_cor_results$estimate
+postive_effect_p <- postive_cor_results$p.value
+```
+
+##### Fig 1a
+**Fig 1a:** the relationship between the number of detections in the PHARMS-UBA database for environmental occurrence of pharmaceuticals (Surface waters *only*), and the occurrence in the Evidence of the Impacts of Pharmaceuticals on Aquatic Animal Behaviour (EIPAAB) database.
+
+
+```{r}
+fig_1a <- test_surfacewater %>%
+  dplyr::filter(!is.na(eipaab_n)) %>% 
+  dplyr::mutate(is_top5 = rank_detection_dif %in% 1:5) %>%   # Flag for top 5 points
+  ggplot(aes(x = combind_detection_log, y = eipaab_n_log, fill = rank_detection_dif, size = rank_detection_dif)) +
+  geom_smooth(colour = "#36454F", fill =  "#36454F", size =  NA, se = TRUE, linewidth = 2) +
+  geom_point(
+    aes(colour = is_top5, stroke = ifelse(is_top5, 1.5, 0.5)),  # Thicker outline for top 10
+    alpha = 0.6,
+    shape = 21
+  ) +
+  annotate(
+    "text",
+    x = min(test_surfacewater$combind_detection_log),  # Position at the top-left (adjust `x` as needed)
+    y = max(test_surfacewater$eipaab_n_log),  # Position at the top
+    label = paste0(
+      "Spearman's rank correlation", "\n",
+      "Effect size: ", round(detection_effect_estimate, 3), "\n",
+      "p-value: ", signif(detection_effect_p, 3)
+    ),
+    hjust = 0, vjust = 1,  # Align text to the top-left
+    size = 4
+  ) +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  scale_colour_manual(
+    values = c("TRUE" = "black", "FALSE" = "black"),  # Golden colour for top 10
+    guide = "none"  # Remove legend for colour
+  ) +
+  geom_text_repel(
+    data = . %>% dplyr::filter(is_top5),  # Filter top 10 rank_diff_order
+    aes(label = compound_name_corrected),
+    size = 3,
+    box.padding = 0.7,
+    min.segment.length = 0,
+    hjust = 0, vjust = 5  # Adjust text position
+  ) +
+  theme_clean() +
+  labs(x = "Log count of detections in UBA",
+       y = "Log occurrence in EIPAAB",
+       fill = "Rank difference",
+       size = "Rank difference") +
+    theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center"  # Align legend to the left
+  )
+fig_1a
+```
+<br>
+***Note:*** *the size and colour of the points represents the difference in the rank occurrence in EIPAAB versus the rank detections in UBA (i.e. rank EIPAAB - rank UBA), where larger values suggest that the compound is overrepresented in EIPAAB.*
+
+<br>
+This code saves the figure above as PDF
+
+```{r}
+ggsave(filename = paste0(output_fig_wd, "./figure-1a.pdf"), 
+       plot = fig_1a,
+       width = 210,
+       height = 297/1.5,  # Specify the height of the plot
+       units = "mm")
+```
+
+#### Table 3
+<br>
+**Table 3:** The compounds with the largest number of samples in across all three environmental databases that are not present in EIPAAB.
+
+```{r}
+test_surfacewater %>% 
+  dplyr::filter(is.na(eipaab_n)) %>% 
+  dplyr::arrange(desc(combind_samples)) %>% 
+  dplyr::slice(1:15) %>% 
+  dplyr::mutate(compound_name = sentence_case(compound_name_corrected)) %>% 
+  dplyr::select(compound_name, combind_samples, combind_detection, combind_percent_detection, combind_rank_samples, combind_rank_detection) %>% 
+  dplyr::rename(Name = compound_name, "Samples" = combind_samples, "Detections" = combind_detection, "Percentage detections" = combind_percent_detection, "Rank samples" = combind_rank_samples, "Rank detections" = combind_rank_detection) %>% 
+  gt() %>% 
+  fmt_number(
+    columns = c("Samples", "Detections"), 
+    decimals = 0
+  ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+
+##### Fig 1b
+**Fig 1b:** the relationship between the number of detections in the PHARMS-UBA database for environmental occurrence of pharmaceuticals (Surface waters, WWTP inflow/effluent, Treated/Untreated sewage, *only*), and the occurance in the Evidence of the Impacts of Pharmaceuticals on Aquatic Animal Behaviour (EIPAAB) database.
+
+
+```{r}
+fig_1b <- test_surfacewater %>%
+  dplyr::filter(!is.na(eipaab_n) & !is.na(combind_percent_detection)) %>% 
+  dplyr::mutate(is_top5 = rank_detection_percent_dif %in% 1:5) %>%   # Flag for top 5 points
+  ggplot(aes(x = combind_percent_detection, y = eipaab_n_log, fill = rank_detection_percent_dif, size = rank_detection_percent_dif)) +
+  geom_smooth(colour = "#36454F", fill =  "#36454F", size =  NA, se = TRUE, linewidth = 2) +
+  geom_point(
+    aes(colour = is_top5, stroke = ifelse(is_top5, 1.5, 0.5)),  # Thicker outline for top 10
+    alpha = 0.6,
+    shape = 21
+  ) +
+  annotate(
+    "text",
+    x = min(test_surfacewater$combind_percent_detection, na.rm = TRUE),  # Position at the top-left (adjust `x` as needed)
+    y = max(test_surfacewater$eipaab_n_log, na.rm = TRUE),  # Position at the top
+    label = paste0(
+      "Spearman's rank correlation", "\n",
+      "Effect size: ", round(postive_effect_estimate, 3), "\n",
+      "p-value: ", signif(postive_effect_p, 3)
+    ),
+    hjust = 0, vjust = 1,  # Align text to the top-left
+    size = 4
+  ) +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  scale_colour_manual(
+    values = c("TRUE" = "black", "FALSE" = "black"),  # Golden colour for top 10
+    guide = "none"  # Remove legend for colour
+  ) +
+  geom_text_repel(
+    data = . %>% dplyr::filter(is_top5),  # Filter top 10 rank_diff_order
+    aes(label = compound_name_corrected),
+    size = 3,
+    box.padding = 0.7,
+    min.segment.length = 0,
+    hjust = 0, vjust = 5  # Adjust text position
+  ) +
+  theme_clean() +
+  labs(x = "Precent detection (%)",
+       y = "Log occurrence in EIPAAB",
+       fill = "Rank difference",
+       size = "Rank difference") +
+    theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center"  # Align legend to the left
+  )
+fig_1b
+```
+
+#### Table 4
+**Table 4:** The compounds with the highest detection rate not found in the EIPAAB database
+
+```{r}
+test_surfacewater %>%
+  dplyr::filter(is.na(eipaab_n) & !is.na(combind_percent_detection)) %>%
+  dplyr::arrange(desc(combind_percent_detection)) %>% 
+  dplyr::slice(1:15) %>% 
+  dplyr::mutate(compound_name = sentence_case(compound_name_corrected)) %>% 
+  dplyr::select(compound_name, combind_singles, combind_single_detection, combind_percent_detection) %>% 
+  dplyr::rename(Name = compound_name, "Single samples" = combind_singles, "Single detections" = combind_single_detection, "Percent detections" = combind_percent_detection) %>% 
+  gt() %>% 
+  fmt_number(
+    columns = c("Percent detections"), 
+    decimals = 2
+  ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+
+## Concentration 
+
+For questions around concentration, I have filtered for only cases where the levels are above zero or above the limit of detection (i.e. positive detections or above LOD). This was done for two reasons, the first being that when researchers are trying to estimate the risk of environmental exposure, we assume that they are emulating potential exposure events at a contaminated site, not trying to replicate a global surface water average. The second is that, by removing zero values and values below LODs, we are trying to be ***more conservative*** with the relative comparison between tested doses in behavioural ecotoxicology and observed environmental doses (as opposed to using some value substitute/estimated value for samples below detection limit). We are also using both single values and summary values of central tendency (means, median, ect).
+ 
+ <br>
+
+In this section we are calculating summary metrics for concentrations used in the behavioural test and for UBA. We will do this separately for effluent and surface waters samples. We are calculating, the mean, median, min, max, range, n (number of contributing data points), standard deviation (sd), standard error (se), and the upper and lower 95% credible intervals (ci_upper, ci_lower).
+
+```{r}
+select_matrix_group <- c("surfacewater", "test")
+
+conc_summary <- all_databases %>% 
+  dplyr::filter(value > 0) %>% 
+  dplyr::group_by(matrix_group, compound_name_corrected) %>% 
+  dplyr::reframe(mean = mean(value, na.rm = TRUE),
+                 median = median(value, na.rm = TRUE),
+                 min = min(value, na.rm = TRUE),
+                 max = max(value, na.rm = TRUE),
+                 range = max-min,
+                 n = length(unique_row_id),  # Sample size
+                 sd = sd(value, na.rm = TRUE),  # Standard deviation
+                 ci_lower = quantile(value, 0.025, na.rm = TRUE),  #95% credible interval using quantiles
+                 ci_upper = quantile(value, 0.975, na.rm = TRUE)
+                 ) %>% 
+  dplyr::mutate(ci_lower = if_else(is.na(ci_lower), NA, ci_lower),
+                ci_upper = if_else(is.na(ci_upper), NA, ci_upper)) %>% 
+  tidyr::complete(
+    tidyr::expand(nesting(matrix_group, compound_name_corrected))
+  )
+```
+
+
+<br>
+Here we will add the summary statistics from above to the full eipaab_uba database, so we can see how many EIPAAB tested concentrations fall under the median surface water and effluent concentrations for each compound.
+
+```{r}
+rename_cols <- conc_summary %>% 
+  dplyr::select(-matrix_group, -compound_name_corrected) %>% 
+  colnames()
+
+conc_summary_eff <- conc_summary %>% 
+  dplyr::filter(matrix_group == "effluent") %>% 
+   dplyr::rename_with(
+    .cols = all_of(rename_cols),  # Select columns to rename
+    .fn = ~ paste0("effluent_", .)  # Prefix with "effluent_"
+  ) %>% 
+  dplyr::select(-matrix_group)
+
+
+conc_summary_surf <- conc_summary %>% 
+  dplyr::filter(matrix_group == "surfacewater") %>% 
+   dplyr::rename_with(
+    .cols = all_of(rename_cols),  # Select columns to rename
+    .fn = ~ paste0("surfacewater_", .)  # Prefix with "effluent_"
+  ) %>% 
+  dplyr::select(-matrix_group)
+
+
+all_databases_with_sum <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::left_join(., conc_summary_eff, by = "compound_name_corrected") %>% 
+  dplyr::left_join(., conc_summary_surf, by = "compound_name_corrected") %>% 
+  dplyr::mutate(under_med_surf = if_else(value < surfacewater_median, 1, 0),
+                under_hci_surf = if_else(value < surfacewater_ci_upper, 1, 0),
+                under_med_effl = if_else(value < effluent_median, 1, 0),
+                under_hci_effl = if_else(value < effluent_ci_upper, 1, 0),
+                diff_med_surf = value/surfacewater_median,
+                diff_hic_surf = value/surfacewater_ci_upper,
+                diff_med_effl = value/effluent_median,
+                diff_hic_effl = value/effluent_ci_upper
+                )
+```
+
+<br>
+Here we are summarising how many test were below the median surface water and effluent concentrations as well as the upper 95%CI. We are also calculating the mean-fold difference in concentrations.
+
+```{r}
+conc_summary <- all_databases_with_sum %>% 
+  dplyr::reframe(eipaab_n = length(unique_row_id),
+                 n_sw = sum(!is.na(under_med_surf)),
+                 less_med_sw = sum(under_med_surf, na.rm = TRUE),
+                 less_hci_sw = sum(under_hci_surf, na.rm = TRUE),
+                 percent_less_med_sw = (less_med_sw/n_sw)*100,
+                 percent_less_hic_sw = (less_hci_sw/n_sw)*100,
+                 n_ef = sum(!is.na(under_med_effl)),
+                 less_med_ef = sum(under_med_effl, na.rm = TRUE),
+                 less_hci_ef = sum(under_hci_effl, na.rm = TRUE),
+                 percent_less_med_ef = (less_med_ef/n_ef)*100,
+                 percent_less_hic_ef = (less_hci_ef/n_ef)*100,
+                 fdiff_med_sw = median(diff_med_surf, na.rm = TRUE),
+                 fdiff_hci_sw = median(diff_hic_surf, na.rm = TRUE),
+                 fdiff_med_ef = median(diff_med_effl, na.rm = TRUE),
+                 fdiff_hci_ef = median(diff_hic_effl, na.rm = TRUE),
+                 ) %>% 
+  dplyr::mutate(across(everything(), ~ ifelse(is.nan(.), NA, .)))
+```
+
+### Results
+
+For the X compounds in the EIPAAB database that had associated data in UBA (representing 1,440 exposures), only X% and X% employed test concentrations lower then median and upper 95% credible interval of surface water concentrations, respectively (Table 4). Further, only X% and X% employed test concentrations lower then median and upper 95% credible interval of wastewater treatment plant effluent (Table 4). On average, concentrations used in behavioural ecotoxicology were X times higher then median surf water concentrations, and X times higher then those in effluent. <br>
+
+##### Table 5
+**Table 5:** The number of exposures in the EIPAAB database that used concentrations less then median and upper 95% credible interval of surface water and effluent concentrations in the UBA database
+
+```{r}
+surf <- eipaab_uba_conc_summary %>% 
+  dplyr::select(n_sw, less_med_sw, less_hci_sw, fdiff_med_sw, fdiff_hci_sw, percent_less_med_sw, percent_less_hic_sw) %>% 
+  dplyr::rename(total_n = n_sw, less_med = less_med_sw, less_hci = less_hci_sw, fdiff_med = fdiff_med_sw, fdiff_hci = fdiff_hci_sw, percent_less_med = percent_less_med_sw, percent_less_hic = percent_less_hic_sw) %>% 
+  dplyr::mutate(matrix = "Surface water")
+
+effluent <- eipaab_uba_conc_summary %>% 
+  dplyr::select(n_ef, less_med_ef, less_hci_ef, fdiff_med_ef, fdiff_hci_ef, percent_less_med_ef, percent_less_hic_ef) %>% 
+  dplyr::rename(total_n = n_ef, less_med = less_med_ef, less_hci = less_hci_ef, fdiff_med = fdiff_med_ef, fdiff_hci = fdiff_hci_ef, percent_less_med = percent_less_med_ef, percent_less_hic = percent_less_hic_ef) %>% 
+  dplyr::mutate(matrix = "Effluent")
+
+rbind(surf, effluent) %>% 
+  dplyr::select(matrix, everything()) %>% 
+  dplyr::mutate(percent_less_med = round(percent_less_med, 2),
+                percent_less_hic = round(percent_less_hic, 2),
+                fdiff_med = round(fdiff_med, 2),
+                fdiff_hci = round(fdiff_hci, 2)) %>% 
+  dplyr::rename(Matrix = matrix, 'Total tests' = total_n, 'Dose less than median' = less_med, 'Dose less than upper 95%CI' = less_hci, "Mean-fold differene from median" = fdiff_med, "Mean-fold differene from upper 95%CI" = fdiff_hci, 'Percent less than median (%)' = percent_less_med, 'Percent less than upper 95%CI (%)' = percent_less_hic) %>% 
+  gt() %>% 
+  fmt_number(
+    columns = 'Total tests', 
+    decimals = 0
+  ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+<br>
+Now we will make a summary for each compound
+
+```{r}
+sample_counts <- eipaab_uba_with_sum %>% 
+  dplyr::select(compound_name, surfacewater_n, effluent_n) %>% 
+  group_by(compound_name) %>% 
+  dplyr::slice(1) %>% 
+  ungroup()
+
+eipaab_uba_under_levels <- eipaab_uba_with_sum %>% 
+  dplyr::group_by(compound_name) %>% 
+  dplyr::reframe(eipaab_n = length(unique_row_id),
+                 n_sw = sum(!is.na(under_med_surf)),
+                 less_med_sw = sum(under_med_surf, na.rm = TRUE),
+                 less_hci_sw = sum(under_hci_surf, na.rm = TRUE),
+                 prop_less_med_sw = less_med_sw/n_sw,
+                 prop_less_hic_sw = less_hci_sw/n_sw,
+                 n_ef = sum(!is.na(under_med_effl)),
+                 less_med_ef = sum(under_med_effl, na.rm = TRUE),
+                 less_hci_ef = sum(under_hci_effl, na.rm = TRUE),
+                 prop_less_med_ef = less_med_ef/n_ef,
+                 prop_less_hic_ef = less_hci_ef/n_ef,
+                 fdiff_med_sw = median(diff_med_surf, na.rm = TRUE),
+                 fdiff_hci_sw = median(diff_hic_surf, na.rm = TRUE),
+                 fdiff_med_ef = median(diff_med_effl, na.rm = TRUE),
+                 fdiff_hci_ef = median(diff_hic_effl, na.rm = TRUE),
+                 ) %>% 
+  dplyr::left_join(., sample_counts, by = "compound_name") %>% 
+  dplyr::mutate(across(everything(), ~ ifelse(is.nan(.), NA, .)))
+```
+
+
+##### Fig 2a
+
+**Fig 2a.** The median fold difference in tested concentrations in EIPAAB and median surface water concentration in UBA (i.e. tested dose ÷ median surface water concentration)
+
+```{r, fig.height=15, fig.width=5}
+fdiff_med_sw_order <- eipaab_uba_under_levels %>% 
+  dplyr::filter(!is.na(fdiff_med_sw)) %>% 
+  dplyr::arrange(desc(fdiff_med_sw)) %>% 
+  dplyr::mutate(order = 1:nrow(.),
+                compound_name = sentence_case(compound_name)) %>% 
+  pull(compound_name)
+
+vline_data <- data.frame(xintercept = log(10^(0:9)),
+                         xlabs = as.character(10^(0:9))) %>% 
+  dplyr::mutate(xlabs = paste0("×",xlabs))
+
+median <- eipaab_uba_conc_summary %>% 
+  dplyr::pull(fdiff_med_sw) %>% 
+  log()
+
+fig_2a <- eipaab_uba_under_levels %>% 
+  dplyr::filter(!is.na(fdiff_med_sw)) %>% 
+  dplyr::mutate(compound_name = sentence_case(compound_name),
+                compound_name = factor(compound_name, levels = rev(fdiff_med_sw_order))) %>% 
+  ggplot(aes(x = log(fdiff_med_sw), y = compound_name, size = eipaab_n, fill = log(surfacewater_n))) +
+  geom_vline(data = vline_data, aes(xintercept = xintercept), linetype = "dashed", colour = "black") +  # Add multiple lines
+  geom_vline(xintercept = median, colour = "darkred") +
+  geom_text(data = vline_data, aes(x = xintercept, y = "clozapine", label = xlabs), inherit.aes = FALSE,
+            angle = 90, vjust = -0.5, hjust = 1, size = 3) +
+  geom_point(alpha = 0.5, shape = 21) +
+  theme_classic() +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center",  # Align legend to the left
+  ) +
+  labs(
+    subtitle = "Tested concentrations vs median surfwater water",
+    x = "Log mean fold difference between tested and median surfwater water concentrations",
+    y = "Compounds",
+    size = "Data in EIPAAB",
+    fill = "Data in UBA"
+  ) +
+    theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center"  # Align legend to the left
+  )
+
+fig_2a
+```
+<br>
+***Note:*** *the size of the points represent the number of occurrence in EIPAAB, and colour of the point represents the number of detected Concentration in UBA* 
+
+<br>
+Save the figure
+
+```{r}
+ggsave(filename = paste0(output_fig_wd, "./figure-2a.pdf"), 
+       plot = fig_2a,
+       width = 210/2,
+       height = 297,  # Specify the height of the plot
+       units = "mm")
+```
+
+<br>
+##### Fig 2b
+**Fig 2b.** The median difference in tested concentrations in EIPAAB and median effluent concentration in UBA (i.e. tested dose ÷ median effluent concentration)
+
+```{r, fig.height=15, fig.width=5}
+fdiff_med_ef_order <- eipaab_uba_under_levels %>%
+  dplyr::filter(!is.na(fdiff_med_ef)) %>%
+  dplyr::arrange(desc(fdiff_med_ef)) %>%
+  dplyr::mutate(order = 1:nrow(.),
+                compound_name = sentence_case(compound_name)) %>%
+  pull(compound_name)
+
+vline_data <- data.frame(xintercept = log(10^(0:8)),
+                         xlabs = as.character(10^(0:8))) %>% 
+  dplyr::mutate(xlabs = paste0("×",xlabs))
+
+median <- eipaab_uba_conc_summary %>% 
+  dplyr::pull(fdiff_med_ef) %>% 
+  log()
+
+fig_2b <- eipaab_uba_under_levels %>% 
+  dplyr::filter(!is.na(fdiff_med_ef)) %>% 
+  dplyr::mutate(compound_name = sentence_case(compound_name),
+                compound_name =factor(compound_name, levels = rev(fdiff_med_ef_order))) %>%
+  ggplot(aes(x = log(fdiff_med_ef), y = compound_name, size = n_eipaab, fill = log(surfacewater_n))) +
+  geom_vline(data = vline_data, aes(xintercept = xintercept), linetype = "dashed", colour = "black") +  # Add multiple lines
+  geom_vline(xintercept = median, colour = "darkred") +
+  geom_text(data = vline_data, aes(x = xintercept, y = "clozapine", label = xlabs), inherit.aes = FALSE,
+            angle = 90, vjust = -0.5, hjust = 1, size = 3) +
+  geom_point(alpha = 0.5, shape = 21) +
+  theme_classic() +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center",  # Align legend to the left
+  ) +
+  labs(
+    subtitle = "Tested concentrations vs median efflent",
+    x = "Log mean fold difference between tested and median efflent concentrations",
+    y = "Compounds",
+    size = "Data in EIPAAB",
+    fill = "Data in UBA"
+  ) +
+    theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center"  # Align legend to the left
+  ) 
+fig_2b
+```
+<br>
+***Note:*** *the size of the points represent the number of occurrence in EIPAAB, and colour of the point represents the number of detected Concentration in UBA* 
+
+```{r}
+ggsave(filename = paste0(output_fig_wd, "./figure-2b.pdf"), 
+       plot = fig_2b,
+       width = 210/2,
+       height = 297,  # Specify the height of the plot
+       units = "mm")
+```
+
+
+##########################
+# Wilkson-EIPAAB crossover
+##########################
+
+Let's see how many of the 184 compounds in EIPAAB (filtered) are in the Wilkson database. <br>
+
+Wilkson had 42 of the compounds, which is 69% of the compounds in the Wilkson database.
+
+```{r}
+eipaab_compound_name_list <- EIPAAB_con_long %>% 
+  dplyr::distinct(compound_name) %>% 
+  dplyr::pull(compound_name)
+
+eipaab_compound_pubchem_name_list <- EIPAAB_con_long %>% 
+  dplyr::distinct(compound_pubchem_name) %>% 
+  dplyr::pull(compound_pubchem_name)
+
+wilkson_in_eipaab <- wilkson_long %>% 
+  dplyr::filter(compound_name %in% eipaab_compound_name_list |
+                  compound_name %in% eipaab_compound_pubchem_name_list) 
+
+n_in <- wilkson_in_eipaab %>% 
+  dplyr::distinct(compound_name) %>% 
+  nrow(.)
+
+n_total <- wilkson_long %>% 
+  dplyr::distinct(compound_name) %>% 
+  nrow(.)
+
+n_in
+n_total
+round(n_in/n_total,2)
+```
+
+<br>
+We will check the missing compound more closely to see if they have used a synonym. Ideally the database would have included CAS to cross check. In this case, we will search each of the 19 missing compounds in PubChem and identify the CAS number, so we can use that to search EIPAAB
+
+```{r}
+wilkson_not_in_eipaab <- wilkson_long %>% 
+  dplyr::filter(!(compound_name %in% eipaab_compound_name_list)) %>% 
+  dplyr::filter(!(compound_name %in% eipaab_compound_pubchem_name_list)) %>% 
+  dplyr::distinct(compound_name)
+
+wilkson_not_in_eipaab_cas <- wilkson_not_in_eipaab %>% 
+  dplyr::mutate(compound_cas = case_when(
+    compound_name == "artemisinin" ~ "63968-64-9",
+    compound_name == "cloxacillin" ~ "61-72-3",
+    compound_name == "cotinine" ~ "486-56-6",
+    compound_name == "fluconazole" ~ "86386-73-4",
+    compound_name == "hydrocodone" ~ "125-29-1",
+    compound_name == "itraconazole" ~ "84625-61-6",
+    compound_name == "ketotifen" ~ "34580-13-7",
+    compound_name == "loratadine" ~ "79794-75-5",
+    compound_name == "miconazole" ~ "22916-47-8",
+    compound_name == "nevirapine" ~ "129618-40-2",
+    compound_name == "norethisterone" ~ "68-22-4",
+    compound_name == "norfluoxetine" ~ "83891-03-6",
+    compound_name == "oseltamivir" ~ "196618-13-0",
+    compound_name == "pregabalin" ~ "148553-50-8",
+    compound_name == "raloxifene" ~ "84449-90-1",
+    compound_name == "salbutamol" ~ "18559-94-9",
+    compound_name == "sitagliptin" ~ "486460-32-6",
+    compound_name == "thiabendazole" ~ "148-79-8",
+    compound_name == "triamterene" ~ "396-01-0",
+    TRUE ~ NA
+  )
+  )
+
+wilkson_not_in_eipaab_cas_list <- wilkson_not_in_eipaab_cas %>% 
+  dplyr::pull(compound_cas)
+```
+
+<br>
+Searching EIPAAB for these CAS numbers. Only one was located norethindrone (68-22-4), which is called norethisterone in the Wilkson database 
+
+```{r}
+EIPAAB_con_long %>% 
+  dplyr::filter(compound_cas %in% wilkson_not_in_eipaab_cas_list) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::select(compound_cas, compound_name, compound_pubchem_name)
+```
+<br>
+We will rename it in the Wilkson database and then filter again, and add the CAS numbers from EIPAAB. Now we have 43 compounds cross-overs with Wilkson and EIPAAB (70% of all Wilkinson).
+
+```{r}
+wilkson_in_eipaab <- wilkson_long %>% 
+  dplyr::mutate(compound_name = if_else(compound_name == "norethisterone", "norethindrone", compound_name)) %>% 
+  dplyr::filter(compound_name %in% eipaab_compound_name_list |
+                  compound_name %in% eipaab_compound_pubchem_name_list)
+
+n_in <- wilkson_in_eipaab %>% 
+  dplyr::distinct(compound_name) %>% 
+  nrow(.)
+
+n_total <- wilkson_long %>% 
+  dplyr::distinct(compound_name) %>% 
+  nrow(.)
+
+n_in
+n_total
+round(n_in/n_total,2)
+```
+
+<br>
+Adding CAS numbers
+
+```{r}
+EIPAAB_identifiers_name <- EIPAAB_con_long %>% 
+  dplyr::group_by(compound_name) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(compound_name, compound_cas, compound_pubchem_name)
+
+EIPAAB_identifiers_pubchem <- EIPAAB_con_long %>% 
+  dplyr::group_by(compound_pubchem_name) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(compound_cas, compound_pubchem_name) %>% 
+  dplyr::rename(compound_name = compound_pubchem_name,
+                compound_cas_pubchem = compound_cas)
+
+wilkson_in_eipaab <- wilkson_in_eipaab %>% 
+  dplyr::left_join(., EIPAAB_identifiers_name, by = "compound_name") %>% 
+  dplyr::left_join(., EIPAAB_identifiers_pubchem, by = "compound_name") %>% 
+  dplyr::mutate(compound_cas = if_else(is.na(compound_cas), compound_cas_pubchem, compound_cas)) %>% 
+  dplyr::select(-compound_cas_pubchem)
+```
+
+
+### Missing from EIPAAB
+
+What compounds are in Wilkson that are not in EIPAAB <br>
+
+#### Table 6 
+
+**Table 6:** Compounds detected in the Wilkson *et al.* (2022) database that are not in the EIPAAB database, with compound name (CAS number), number of positive detections, and the median and range of detected concentrations (not including non-detections)
+
+```{r}
+wilkson_not_in_eipaab <- wilkson_long %>% 
+  dplyr::mutate(compound_name = if_else(compound_name == "norethisterone", "norethindrone", compound_name)) %>% 
+  dplyr::filter(!(compound_name %in% eipaab_compound_name_list)) %>%
+  dplyr::filter(!(compound_name %in% eipaab_compound_pubchem_name_list))
+
+wilkson_not_in_eipaab_summary <- wilkson_not_in_eipaab %>% 
+  dplyr::filter(value > 0) %>% 
+  dplyr::group_by(compound_name) %>% 
+  dplyr::reframe(mean = mean(value, na.rm = TRUE),
+                 median = median(value, na.rm = TRUE),
+                 min = min(value, na.rm = TRUE),
+                 max = max(value, na.rm = TRUE),
+                 range = max-min,
+                 n_postive_detection = length(value),  # Sample size
+                 ci_lower = quantile(value, 0.025, na.rm = TRUE),
+                 ci_upper = quantile(value, 0.975, na.rm = TRUE)
+                 ) %>% 
+  dplyr::mutate(ci_lower = if_else(is.na(ci_lower), NA, ci_lower),
+                ci_upper = if_else(is.na(ci_upper), NA, ci_upper))
+
+wilkson_not_in_eipaab_summary <- wilkson_not_in_eipaab %>% 
+  dplyr::group_by(compound_name) %>% 
+  dplyr::reframe(n_samples = length(value)) %>% 
+  dplyr::left_join(., wilkson_not_in_eipaab_summary, by = "compound_name") %>% 
+  dplyr::mutate(prop_postive = n_postive_detection/n_samples) %>% 
+  dplyr::left_join(., wilkson_not_in_eipaab_cas, by = "compound_name") %>%
+  dplyr::arrange(desc(n_postive_detection))
+
+
+wilkson_not_in_eipaab_summary %>% 
+  dplyr::filter(n_postive_detection > 0) %>%
+  dplyr::mutate(name = paste0(sentence_case(compound_name), " (", compound_cas, ")"),
+                median_range = paste0(round(median, 4), " (", round(min,4), "–", round(max,4), ")")
+                )%>% 
+  dplyr::select(name, n_postive_detection, median_range) %>% 
+  dplyr::rename('Compound name (CAS number)' = name, 'Number of detections' = n_postive_detection, 'Median concentration with range (µg/L)' = median_range) %>% 
+  dplyr::arrange(desc("Number of detections")) %>% 
+  dplyr::slice(1:20) %>% 
+  gt() %>% 
+  tab_header(
+    title = "Wilkson et al. compounds not in EIPAAB",
+    subtitle = "Compounds detected in at least one site in Wilkson et al. (2022)"
+  ) %>% 
+  fmt_number(
+    columns = "Number of detections", 
+    decimals = 0
+  ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+
+<br>
+*Text summary* : Compounds that were detected in Wilkson but are in EIPAAB inculdes: Cotinine (CAS: 486-56-6; 386 detections), Sitagliptin (CAS: 486460-32-6; 323 detections), Hydrocodone (CAS: 125-29-1; 82 detections), Fluconazole (CAS: 86386-73-4; 81 detections), Pregabalin (CAS: 148553-50-8; 72 detections), Nevirapine (CAS: 129618-40-2; 64 detections), Triamterene (CAS: 396-01-0; 48 detections), Salbutamol (CAS: 18559-94-9; 40 detections), Loratadine (CAS: 79794-75-5; 21 detections), Thiabendazole (CAS: 148-79-8; 17 detections), Artemisinin (CAS: 63968-64-9; 8 detections), Oseltamivir (CAS: 196618-13-0; 4 detections), Itraconazole (CAS: 84625-61-6; 1 detections), Ketotifen (CAS: 34580-13-7; 1 detections)
+
+```{r}
+wilkson_not_in_eipaab_summary %>% 
+  dplyr::filter(n_postive_detection > 0) %>% 
+  dplyr::mutate(text_info = paste0(sentence_case(compound_name), " (CAS: ", compound_cas, "; ", n_postive_detection, " detections)")) %>% 
+  dplyr::pull(text_info) %>% 
+  paste(collapse = ", ")
+```
+
+
+### EIPAAB_Wilkson
+
+This code makes a list of CAS and compound names from EIPAAB, which we will add to UBA, by filter the EIPAAB database for only compounds shared across both.
+
+```{r}
+name_filter <- wilkson_in_eipaab %>% 
+  tidyr::expand(nesting(compound_name)) %>% 
+  dplyr::distinct(compound_name) %>% 
+  pull(compound_name)
+
+EIPAAB_con_long_wilkson <- EIPAAB_con_long %>% 
+  dplyr::filter(compound_name %in% name_filter) %>% 
+  dplyr::mutate(n_units_est = n_units)
+```
+
+
+```{r}
+eipaab_wilkson <- wilkson_in_eipaab %>% 
+  dplyr::mutate(unique_row_id = paste0(sample_id, "_", compound_name),
+                concentration_type = "single",
+                matrix_group = "surfacewater",
+                n_units = 1,
+                source = "wilkson",
+                n_units_est = 1) %>%
+  dplyr::select(-sample_id, -survey_n, -site) %>% 
+  rbind(., EIPAAB_con_long_wilkson)
+```
+
+### Occurrence
+
+Let's see if there is a correlation between the sample occurrence in Wilson and EIPAAB, as well as the number of positive environmental detections in UBA and EIPAAB occurrence. <br>
+
+Here we make a summary data frame for each compound, **eipaab_uba_counts**, that includes the number of occurrences in each database, the rank occurrence, the number of detections in the UBA database, the proportion of positive detections in UBA, the rank order of detections, the relative rank order of environmental detections in UBA versus occurrence in EIPAAB (see Table 2). <br>
+
+```{r}
+wilkson_counts_surface <- eipaab_wilkson %>% 
+  dplyr::filter(source == "wilkson") %>% 
+  dplyr::group_by(compound_name) %>% 
+  dplyr::reframe(wilkson_total_samples = sum(n_units_est, na.rm = TRUE),
+                 wilkson_all_detection = sum(value > 0, na.rm = TRUE),
+                 wilkson_all_detection_log = if_else(wilkson_all_detection > 0, 
+                                                     log(wilkson_all_detection), wilkson_all_detection),
+                 wilkson_percent_detection = (wilkson_all_detection/wilkson_total_samples)*100
+                 ) %>% 
+  ungroup() %>% 
+  dplyr::mutate(wilkson_rank_detection = rank(-wilkson_all_detection, ties.method = "max", na.last = "keep"),
+    wilkson_rank_detection_percent = rank(-wilkson_percent_detection, ties.method = "max", na.last = "keep")
+  ) %>% 
+  tidyr::complete(., compound_name)
+
+wilkson_surface_compounds_list <- wilkson_counts_surface %>% 
+  dplyr::distinct(compound_name) %>% 
+  dplyr::pull(compound_name)
+
+eipaab_counts <- eipaab_wilkson %>% 
+  dplyr::filter(source == "eipaab" & compound_name %in% wilkson_surface_compounds_list) %>% 
+  dplyr::group_by(compound_name) %>% 
+  dplyr::reframe(eipaab_n = sum(n_units_est, na.rm = TRUE),
+                 eipaab_n_log = log(eipaab_n)) %>% 
+  ungroup() %>% 
+  dplyr::mutate(eipaab_rank = rank(-eipaab_n, ties.method = "max", na.last = "keep")) %>% 
+  tidyr::complete(., compound_name)
+
+eipaab_wilkson_counts <- left_join(wilkson_counts_surface, eipaab_counts, by = "compound_name") %>% 
+  dplyr::mutate(rank_detection_dif = eipaab_rank-wilkson_rank_detection,
+                rank_detection_percent_dif = eipaab_rank-wilkson_percent_detection
+                ) %>% 
+  dplyr::arrange(desc(rank_detection_dif), desc(wilkson_all_detection)) %>% 
+  dplyr::mutate(rank_detection_dif = 1:nrow(.)) %>% 
+  dplyr::arrange(desc(rank_detection_percent_dif), desc(wilkson_percent_detection)) %>% 
+  dplyr::mutate(rank_detection_percent_dif = 1:nrow(.))
+```
+
+#### Table 7
+**Table 7:** the 10 most common compounds in EIPAAB versus occurrence and detection frequency in Wilkson
+
+```{r}
+eipaab_rank_max <- eipaab_wilkson_counts %>% 
+  dplyr::reframe(max = max(eipaab_rank, na.rm = TRUE)) %>% 
+  dplyr::pull(max)
+
+wilkson_rank_detection_max <- eipaab_wilkson_counts %>% 
+  dplyr::reframe(max = max(wilkson_rank_detection, na.rm = TRUE)) %>% 
+  dplyr::pull(max)
+
+eipaab_wilkson_counts %>% 
+  dplyr::arrange(desc(eipaab_n)) %>% 
+  dplyr::slice(1:10) %>% 
+  dplyr::mutate(compound_name = sentence_case(compound_name)) %>% 
+  dplyr::select(compound_name, eipaab_n, wilkson_all_detection, wilkson_percent_detection, eipaab_rank, wilkson_rank_detection, wilkson_rank_detection_percent) %>% 
+  dplyr::rename(Name = compound_name, "EIPAAB tests" = eipaab_n, "Detections" = wilkson_all_detection, "Percent detections (%)" = wilkson_percent_detection,  "EIPAAB rank (1–43)" = eipaab_rank, "Wilkson rank total detections (1–43)" = wilkson_rank_detection, "Wilkson rank percent detections (1–43)" = wilkson_rank_detection_percent) %>% 
+  gt() %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+
+### Results
+
+#NOTE: change to GLM
+There is no obvious correlation between the total detections in the Wilkson and occurrence in the EIAPAAB database (Spearman's rank correlation: rho = -0.002, p = 0.989; Fig 3a). <br>
+
+Spearman's rank correlation between the number of detections in Wilkson and occurrence in the EIAPAAB database.
+
+
+```{r}
+cor_detection_results <- cor.test(eipaab_wilkson_counts$wilkson_all_detection, eipaab_wilkson_counts$eipaab_n, method = "spearman",
+         exact = NULL, conf.level = 0.95, continuity = FALSE)
+
+detection_effect_estimate <- cor_detection_results$estimate
+detection_effect_p <- cor_detection_results$p.value
+
+cor_detection_results
+```
+<br>
+Spearman's rank correlation between the percentage of detections and the occurrence in EIPAAB. Here we have used only single measures and compounds that have more then ten samples in the UBA databases. The correlation is not statistically significant. This result will be basicaly the same as the detection count, because all compounds have very simialr number of samples in the Wilkson database 
+
+```{r}
+postive_cor_results <- cor.test(eipaab_wilkson_counts$wilkson_percent_detection, eipaab_wilkson_counts$eipaab_n, method = "spearman",
+         exact = NULL, conf.level = 0.95, continuity = FALSE)
+
+postive_cor_results
+
+postive_effect_estimate <- postive_cor_results$estimate
+postive_effect_p <- postive_cor_results$p.value
+```
+
+
+##### Fig 3
+**Fig 3:** the relationship between the number of detections in the Wilkson et al (2022) database for environmental occurrence of pharmaceuticals in the world rivers, and the occurrence in the Evidence of the Impacts of Pharmaceuticals on Aquatic Animal Behaviour (EIPAAB) database.
+
+
+```{r}
+fig_3a <- eipaab_wilkson_counts %>%
+  dplyr::mutate(is_top5 = rank_detection_dif %in% 1:5) %>%   # Flag for top 5 points
+  ggplot(aes(x = wilkson_all_detection, y = eipaab_n_log, fill = rank_detection_dif, size = rank_detection_dif)) +
+  geom_smooth(colour = "#36454F", fill =  "#36454F", size =  NA, se = TRUE, linewidth = 2) +
+  geom_point(
+    aes(colour = is_top5, stroke = ifelse(is_top5, 1.5, 0.5)),  # Thicker outline for top 10
+    alpha = 0.6,
+    shape = 21
+  ) +
+  annotate(
+    "text",
+    x = min(eipaab_uba_counts$wilkson_all_detection),  # Position at the top-left (adjust `x` as needed)
+    y = max(eipaab_uba_counts$eipaab_n_log),  # Position at the top
+    label = paste0(
+      "Spearman's rank correlation", "\n",
+      "Effect size: ", round(detection_effect_estimate, 3), "\n",
+      "p-value: ", signif(detection_effect_p, 3)
+    ),
+    hjust = 0, vjust = 1,  # Align text to the top-left
+    size = 4
+  ) +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  scale_colour_manual(
+    values = c("TRUE" = "black", "FALSE" = "black"),  # Golden colour for top 10
+    guide = "none"  # Remove legend for colour
+  ) +
+  geom_text_repel(
+    data = . %>% dplyr::filter(is_top5),  # Filter top 10 rank_diff_order
+    aes(label = compound_name),
+    size = 3,
+    box.padding = 0.7,
+    min.segment.length = 0,
+    hjust = 0, vjust = 5  # Adjust text position
+  ) +
+  theme_clean() +
+  labs(x = "Detections in Wilkson et al. (2022)",
+       y = "Log occurrence in EIPAAB",
+       fill = "Rank difference",
+       size = "Rank difference") +
+    theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center"  # Align legend to the left
+  )
+fig_3a
+```
+<br>
+***Note:*** *the size and colour of the points represents the difference in the rank occurrence in EIPAAB versus the rank detections in UBA (i.e. rank EIPAAB - rank UBA), where larger values suggest that the compound is overrepresented in EIPAAB.*
+
+<br>
+This code saves the figure above as PDF
+
+```{r}
+ggsave(filename = paste0(output_fig_wd, "./figure-3a.pdf"), 
+       plot = fig_3a,
+       width = 210,
+       height = 297/1.5,  # Specify the height of the plot
+       units = "mm")
+```
+
+
+## Concentration 
+
+In this section we are calculating summary metrics for concentrations used in the behavioural test and for Wilkson. We are calculating, the mean, median, min, max, range, n (number of contributing data points), standard deviation (sd), standard error (se), and the upper and lower 95% confidence intervals (ci_upper, ci_lower).
+
+
+```{r}
+eipaab_wilkson_conc_summary <- eipaab_wilkson %>% 
+  dplyr::filter(value > 0) %>% 
+  dplyr::group_by(matrix_group, compound_name) %>% 
+  dplyr::reframe(mean = mean(value, na.rm = TRUE),
+                 median = median(value, na.rm = TRUE),
+                 min = min(value, na.rm = TRUE),
+                 max = max(value, na.rm = TRUE),
+                 range = max-min,
+                 n = length(unique_row_id),  # Sample size
+                 ci_lower = quantile(value, 0.025, na.rm = TRUE),
+                 ci_upper = quantile(value, 0.975, na.rm = TRUE)
+                 ) %>% 
+  dplyr::mutate(ci_lower = if_else(is.na(ci_lower), NA, ci_lower),
+                ci_upper = if_else(is.na(ci_upper), NA, ci_upper)) %>% 
+  tidyr::complete(
+    tidyr::expand(nesting(matrix_group, compound_name))
+  )
+```
+
+<br>
+Here we will add the summary statistics from above to the full eipaab_uba database, so we can see how many EIPAAB tested concentrations fall under the median surface water and effluent concentrations for each compound.
+
+```{r}
+rename_cols <- eipaab_wilkson_conc_summary %>% 
+  dplyr::select(-matrix_group, -compound_name) %>% 
+  colnames()
+
+eipaab_wilkson_conc_summary_surf <- eipaab_wilkson_conc_summary %>% 
+  dplyr::filter(matrix_group == "surfacewater") %>% 
+   dplyr::rename_with(
+    .cols = all_of(rename_cols),  # Select columns to rename
+    .fn = ~ paste0("surfacewater_", .)  # Prefix with "surfacewater_"
+  ) %>% 
+  dplyr::select(-matrix_group)
+
+
+eipaab_wilkson_with_sum <- eipaab_wilkson %>% 
+  dplyr::filter(matrix_group == "test") %>% 
+  dplyr::left_join(., eipaab_wilkson_conc_summary_surf, by = "compound_name") %>% 
+  dplyr::mutate(under_med_surf = if_else(value < surfacewater_median, 1, 0),
+                under_hci_surf = if_else(value < surfacewater_ci_upper, 1, 0),
+                diff_med_surf = value/surfacewater_median,
+                diff_hic_surf = value/surfacewater_ci_upper
+                )
+```
+
+
+### Results
+
+For the 43 compounds in the EIPAAB database that had associated data in Wilkson, only 7.53% and 25.68% employed test concentrations lower then median and upper 95% credible interval of surface water concentrations, respectively (Table 4). Further, only 11.77% and 29.79% employed test concentrations lower then median and upper 95% credible interval of waste water treatment plant effluent (Table 4). On average, concentrations used in behavioural ecotoxicology were 309 times higher then median surf water concentrations, and 12 times higher then those in effluent. <br>
+
+##### Table 8
+**Table 8:** The number of exposures in the EIPAAB database that used concentrations less then median and upper 95% credible interval of surface water and effluent concentrations in the UBA database
+
+```{r}
+eipaab_wilkson_conc_summary <- eipaab_wilkson_with_sum %>% 
+  dplyr::reframe(total_n = length(unique_row_id),
+                 total_n = length(unique_row_id),
+                 n = sum(!is.na(under_med_surf)),
+                 less_med = sum(under_med_surf, na.rm = TRUE),
+                 less_hci = sum(under_hci_surf, na.rm = TRUE),
+                 percent_less_med = (less_med/n)*100,
+                 percent_less_hic = (less_hci/n)*100,
+                 fdiff_med = median(diff_med_surf, na.rm = TRUE),
+                 fdiff_hci = median(diff_hic_surf, na.rm = TRUE)
+                 ) %>% 
+  dplyr::mutate(across(everything(), ~ ifelse(is.nan(.), NA, .)))
+
+eipaab_wilkson_conc_summary %>% 
+  dplyr::mutate(matrix = "Surface waters") %>% 
+  dplyr::select(matrix, everything()) %>% 
+  dplyr::mutate(percent_less_med = round(percent_less_med, 2),
+                percent_less_hic = round(percent_less_hic, 2),
+                fdiff_med = round(fdiff_med, 0),
+                fdiff_hci = round(fdiff_hci, 0)) %>% 
+  dplyr::rename(Matrix = matrix, 'Total tests' = n, 'Dose less than median' = less_med, 'Dose less than upper 95%CI' = less_hci, "Mean-fold differene from median" = fdiff_med, "Mean-fold differene from upper 95%CI" = fdiff_hci, 'Percent less than median (%)' = percent_less_med, 'Percent less than upper 95%CI (%)' = percent_less_hic) %>% 
+  gt() %>% 
+  fmt_number(
+    columns = 'Total tests', 
+    decimals = 0
+  ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+
+Now making a summary for each compound
+
+```{r}
+eipaab_wilkson_under_levels <- eipaab_wilkson_with_sum %>% 
+  dplyr::group_by(compound_name) %>% 
+  dplyr::reframe(total_n = length(unique_row_id),
+                 n = sum(!is.na(under_med_surf)),
+                 less_med = sum(under_med_surf, na.rm = TRUE),
+                 less_hci = sum(under_hci_surf, na.rm = TRUE),
+                 percent_less_med = (less_med/n)*100,
+                 percent_less_hic = (less_hci/n)*100,
+                 fdiff_med = median(diff_med_surf, na.rm = TRUE),
+                 fdiff_hci = median(diff_hic_surf, na.rm = TRUE)
+                 ) %>% 
+  dplyr::mutate(across(everything(), ~ ifelse(is.nan(.), NA, .)))
+
+eipaab_wilkson_conc_summary_eipaab_n <- eipaab_wilkson_counts %>% 
+  dplyr::select(compound_name, eipaab_n)
+
+eipaab_wilkson_under_levels <- eipaab_wilkson_under_levels %>% 
+  left_join(., eipaab_wilkson_conc_summary_eipaab_n, by = "compound_name")
+```
+
+
+## Fig 4
+**Fig 2a.** The median fold difference in tested concentrations in EIPAAB and median surface water concentration in Wilkson et al (2022) (i.e. tested dose ÷ median surface water concentration)
+
+```{r, fig.height=10, fig.width=5}
+fdiff_med_order <- eipaab_wilkson_under_levels %>% 
+  dplyr::filter(!is.na(fdiff_med)) %>% 
+  dplyr::arrange(desc(fdiff_med)) %>% 
+  dplyr::mutate(order = 1:nrow(.),
+                compound_name = sentence_case(compound_name)) %>% 
+  pull(compound_name)
+
+vline_data <- data.frame(xintercept = log(10^(0:6)),
+                         xlabs = as.character(10^(0:6))) %>% 
+  dplyr::mutate(xlabs = paste0("×",xlabs))
+
+median <- eipaab_wilkson_conc_summary %>% 
+  dplyr::pull(fdiff_med) %>% 
+  log()
+
+fig_2a <- eipaab_wilkson_under_levels %>% 
+  dplyr::filter(!is.na(fdiff_med)) %>% 
+  dplyr::mutate(compound_name = sentence_case(compound_name),
+                compound_name = factor(compound_name, levels = rev(fdiff_med_order))) %>% 
+  ggplot(aes(x = log(fdiff_med), y = compound_name, size = eipaab_n, fill = log(n))) +
+  geom_vline(data = vline_data, aes(xintercept = xintercept), linetype = "dashed", colour = "black") +  # Add multiple lines
+  geom_vline(xintercept = median, colour = "darkred") +
+  geom_text(data = vline_data, aes(x = xintercept, y = "Lidocaine", label = xlabs), inherit.aes = FALSE,
+            angle = 90, vjust = -0.5, hjust = 1, size = 3) +
+  geom_point(alpha = 0.5, shape = 21) +
+  theme_classic() +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center",  # Align legend to the left
+  ) +
+  labs(
+    subtitle = "Tested concentrations vs median surfwater water",
+    x = "Log mean fold difference between tested and median surfwater water concentrations",
+    y = "Compounds",
+    size = "Data in EIPAAB",
+    fill = "Data in UBA"
+  ) +
+    theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center"  # Align legend to the left
+  )
+
+fig_2a
+```
+<br>
+***Note:*** *the size of the points represent the number of occurrence in EIPAAB, and colour of the point represents the number of detected Concentration in UBA* 
+
+
+# Combind databases
+
+```{r}
+wilkson_con_long <- wilkson_in_eipaab %>% 
+  dplyr::mutate(unique_row_id = paste0(sample_id, "_", compound_name),
+                concentration_type = "single",
+                matrix_group = "surfacewater",
+                n_units = 1,
+                source = "wilkson",
+                n_units_est = 1) %>%
+  dplyr::select(-sample_id, -survey_n, -site)
+
+env_data <- rbind(uba_con_long, wilkson_con_long)
+
+compound_pull <- environmental_concentrations %>% 
+  dplyr::distinct(compound_cas) %>% 
+  dplyr::pull(compound_cas)
+
+eipaab_filter_env_data <- EIPAAB_con_long %>% 
+  dplyr::filter(compound_cas %in% compound_pull) %>% 
+  dplyr::mutate(n_units_est = n_units)
+
+eipaab_env_data <- rbind(env_data, eipaab_filter_env_data)
+```
+
+
+
+#####################
+# UBA-EIPAAB crossover
+######################
+
+In this part of the code we will look at the cross over between EIPAAB and UBA <br>
+
+First we filter the UBA for only compounds in the EIPAAB database (uba_only_eipaab_df)
+
+```{r}
+uba_only_eipaab_df <- all_databases %>% 
+  dplyr::filter(source == "uba") %>% 
+  dplyr::filter(compound_cas %in% eipaab_cas_list |
+                compound_name %in% eipaab_name_list |
+                compound_name %in% eipaab_pubchem_name_list)
+```
+
+<br>
+**154 CAS** appeared are in the filtered UBA database (157 compound names). 
+
+```{r}
+eipaab_cas_in_uba_list <- uba_only_eipaab_df %>% 
+  dplyr::distinct(compound_cas) %>% 
+  pull(compound_cas)
+
+eipaab_name_in_uba_list <- uba_only_eipaab_df %>% 
+  dplyr::distinct(compound_name) %>% 
+  pull(compound_name)
+
+eipaab_cas_in_uba_n <- length(eipaab_cas_in_uba_list)
+eipaab_name_in_uba_n <- length(eipaab_name_in_uba_list)
+
+print(paste0("n CAS numbers = ", eipaab_cas_in_uba_n, "; n compound names = ", eipaab_name_in_uba_n))
+```
+
+## UBA-EIPAAB missing
+
+There are **734 compounds** in UBA surface water/effluent samples that are not found in the EIPAAB database. In other words, 734 pharmaceutical compounds that have not been subject to behavioural analysis of any kind. 
+
+```{r}
+UBA_remaining_cas <- UBA %>% 
+  dplyr::filter(!(compound_cas %in% eipaab_cas_in_uba_list)) %>% 
+  dplyr::select(compound_cas, compound_cas, number_of_samples_analysed, mec_standardized, unit_standard, matrix_group, statistics_group) %>% 
+  dplyr::mutate(number_of_samples_analysed_est = if_else(is.na(number_of_samples_analysed), 1, number_of_samples_analysed))
+
+UBA_not_in_EIPAAB <- UBA_remaining_cas %>% 
+  dplyr::distinct(compound_cas) %>% 
+  nrow(.)
+
+print(paste0("n not in EIPAAB = ", UBA_not_in_EIPAAB))
+```
+
+```{r}
+UBA_remaining_cas <- all_databases %>% 
+  dplyr::filter(source == "uba" & !(compound_cas %in% eipaab_cas_in_uba_list)) %>% 
+  dplyr::select(compound_cas, compound_name, n_units_est, concentration_type, value, matrix_group, matrix)
+
+UBA_not_in_EIPAAB <- UBA_remaining_cas %>% 
+  dplyr::distinct(compound_cas) %>% 
+  nrow(.)
+
+print(paste0("n not in EIPAAB = ", UBA_not_in_EIPAAB))
+```
+
+<br>
+Let's see which of these compounds were detected most often in UBA surface water samples, and thus could be a key target for future analysis (Table 1). <br>
+
+#### Table 1
+
+**Table 1:** This is a summary of the most commonly detected surface water compounds in the UBA database (top 20) that are not in the EIPAAB database, with compound name (CAS number; where provided), number of positive detections, percentage of positive detections, and the median and range of detected concentrations (not including non-detections)
+
+```{r}
+UBA_not_in_eipaab_summary <- UBA_remaining_cas %>% 
+  dplyr::filter(matrix_group == "surfacewater", value > 0) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::reframe(mean = mean(value, na.rm = TRUE),
+                 median = median(value, na.rm = TRUE),
+                 min = min(value, na.rm = TRUE),
+                 max = max(value, na.rm = TRUE),
+                 range = max-min,
+                 n_postive_detection = length(value),  # Sample size
+                 sd = sd(value, na.rm = TRUE),  # Standard deviation
+                 se = sd / sqrt(n_postive_detection),  # Standard error
+                 ci_lower = mean - qt(0.949, df = n_postive_detection - 1) * se,  # Lower bound of 95% CI
+                 ci_upper = mean + qt(0.949, df = n_postive_detection - 1) * se   # Upper bound of 95% CI
+                 ) %>% 
+  dplyr::mutate(ci_lower = if_else(is.na(ci_lower), NA, ci_lower),
+                ci_upper = if_else(is.na(ci_upper), NA, ci_upper))
+
+UBA_not_in_eipaab_summary <- UBA_remaining_cas %>% 
+  dplyr::filter(matrix_group == "surfacewater") %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::reframe(n_sample_rows = length(n_units_est)) %>% 
+  dplyr::full_join(., UBA_not_in_eipaab_summary, by = "compound_cas") %>% 
+  dplyr::mutate(prop_postive = if_else(n_sample_rows>100, n_postive_detection/n_sample_rows, NA))
+
+UBA_not_in_eipaab_name_match <- UBA_remaining_cas %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(compound_cas, compound_name)
+
+UBA_not_in_eipaab_summary <- UBA_remaining_cas %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::reframe(n_samples = length(value)) %>% 
+  dplyr::left_join(., UBA_not_in_eipaab_summary, by = "compound_cas") %>% 
+  dplyr::mutate(prop_postive = n_postive_detection/n_samples) %>% 
+  dplyr::left_join(., UBA_not_in_eipaab_name_match, by = "compound_cas") %>%
+  dplyr::select(compound_name, compound_cas, everything()) %>% 
+  dplyr::arrange(desc(n_postive_detection))
+
+UBA_not_in_eipaab_summary %>% 
+  dplyr::mutate(name = paste0(sentence_case(compound_name), " (", compound_cas, ")"),
+                median_range = paste0(round(median, 4), " (", round(min,4), "–", round(max,4), ")"),
+                precent_postive = round(prop_postive*100,2)
+                ) %>% 
+  dplyr::select(name, n_postive_detection, precent_postive, median_range) %>% 
+  dplyr::rename('Compound name (CAS number)' = name, 'Number of detections' = n_postive_detection, 'Percentage detections (%)' = precent_postive, 'Median concentration with range (µg/L)' = median_range) %>% 
+  dplyr::arrange(desc("Number of detections")) %>% 
+  dplyr::slice(1:20) %>% 
+  gt() %>% 
+  tab_header(
+    title = "UBA compounds not in EIPAAB",
+    subtitle = "Top 20 compounds based on UBA detections"
+  ) %>% 
+  fmt_number(
+    columns = "Number of detections", 
+    decimals = 0
+  ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+<br>
+
+*Text summary* : The most frequently detected compounds in UBA not yet covered in EIPAAB are Triclosan (cas: 3380-34-5; 992 detections), Cypermethrin (cas: 52315-07-8; 634 detections), Diazinon (cas: 333-41-5; 4173 detections), Iopromide (cas: 73334-07-3; 411 detections), Clofibric acid (cas: 882-09-7; 1187 detections), Theophylline (cas: 58-559; 326 detections), Estriol (cas: 50-27-1; 882 detections), Losartan (cas: 114798-26-4; 318 detections), Diatrizoic acid (cas: 117-96-4; 336 detections), Primidone (cas: 125-33-7; 504 detections).
+
+```{r}
+UBA_not_in_eipaab_summary %>% 
+  dplyr::slice(1:10) %>% 
+  dplyr::mutate(compound_name= sentence_case(compound_name), 
+                text_info = paste0(compound_name, " (cas: ", compound_cas, "; ", n_samples, " detections)")) %>% 
+  dplyr::pull(text_info) %>% 
+  paste(collapse = ", ")
+```
+
+
