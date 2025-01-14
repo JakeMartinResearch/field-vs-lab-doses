@@ -135,7 +135,10 @@ pacman::p_load("ggplot2",
                "tidyverse", 
                "janitor", 
                "readxl", 
-               "broom" # data tidy
+               "broom", # data tidy
+               
+               "brms",
+               "performance" # data analysis 
                        )
 ```
 
@@ -222,6 +225,12 @@ output_fig_wd <- paste0(wd, "./output-fig")
 ifelse(!dir.exists("output-fig"), dir.create("output-fig"), "Folder already exists")
 ```
 
+**output_models_ws**:: Directory for the output models
+
+```{r}
+output_mod_wd <- paste0(wd, "./output-mods")
+ifelse(!dir.exists("output-mods"), dir.create("output-mods"), "Folder already exists")
+```
 
 #########################
 # Databases 
@@ -699,14 +708,13 @@ norman_tidy <- norman_pham %>%
 # All databases
 ###################
 
-## Combind the 4 databases
+## Combind the databases
 
 Here we combined all databases
 
 ```{r}
 all_databases <- bind_rows(eipaab_tidy, uba_tidy, wilkson_tidy, norman_tidy)
 ```
-
 
 ## Compound identifies 
 
@@ -919,16 +927,11 @@ all_databases %>%
 # Analysis 
 ####################
 
-## Occurrence
+Let's check if there is a correlation between detections and percentage of positive detections in the environmental databases and number of tests in the EIPAAB databases. <br>
 
-Let's see if there is a correlation between the sample occurrence in the environmental data and EIPAAB, as well as the number of positive environmental detections and EIPAAB occurrence. <br>
+### Summary statistics
 
-Here we make a summary data frame for each compound, **eipaab_uba_counts**, that includes the number of occurrences in each database, the rank occurrence, the number of positive detections in the UBA database (based on single samples, not summary statistics), the rank order of detections, the percentage of positive detections in UBA (only in cases of more then 50 sample units), the rank order of percentage of positive detection, the relative rank order of environmental detections in UBA versus occurrence in EIPAAB (see Table 2). <br>
-
-```{r}
-all_databases %>% 
-  dplyr::distinct(concentration_type)
-```
+Here we make a summary data frame for each compound, **all_surfacewater**, that includes the number of samples,the number of positive detections (based on single samples, not summary statistics), the rank order of detections, the percentage of positive detections (only for compounds with more then 10 sample units), and the rank order of percentage of positive detection. <br>
 
 Here I make a summary data frame, looking at the occurrence and detection rate of compounds in surface waters
 
@@ -940,7 +943,6 @@ all_surfacewater <- all_databases %>%
                  combind_rows = length(unique_row_id),
                  combind_singles = sum(concentration_type == "single", na.rm = TRUE),
                  combind_detection = sum(value > 0, na.rm = TRUE),
-                 combind_detection_log = if_else(combind_detection > 0, log(combind_detection), combind_detection),
                  combind_single_detection = sum(value > 0 & concentration_type == "single", na.rm = TRUE),
                  combind_percent_detection = if_else(combind_singles > 10, (combind_single_detection/combind_singles)*100, NA)
                  ) %>% 
@@ -952,7 +954,7 @@ all_surfacewater <- all_databases %>%
   )
 ```
 
-There's a total of 870 compound names in the surface water data
+There's a total of 870 compounds in this surface water summary
 
 ```{r}
 all_surfacewater %>% 
@@ -1006,6 +1008,7 @@ uba_rank_detection_percent_max <- test_surfacewater %>%
 
 **Table 2:** the 10 most common compounds in EIPAAB versus occurrence and detection frequency in UBA surface waters
 UBA samples
+
 ```{r}
 test_surfacewater %>% 
   dplyr::arrange(desc(eipaab_n)) %>% 
@@ -1013,7 +1016,7 @@ test_surfacewater %>%
   dplyr::mutate(compound_name = sentence_case(compound_name_corrected),
                 combind_percent_detection = round(combind_percent_detection,2)) %>% 
   dplyr::select(compound_name, eipaab_n, combind_samples, combind_detection, combind_percent_detection, eipaab_rank, combind_rank_detection, combind_rank_detection_percent) %>% 
-  dplyr::rename(Name = compound_name, "EIPAAB tests" = eipaab_n, "Samples" = combind_samples, "All detections" = combind_detection, "Precent single detections (%)" = combind_percent_detection, "EIPAAB rank (1–870)" = eipaab_rank,
+  dplyr::rename(Name = compound_name, "EIPAAB tests" = eipaab_n, "Samples" = combind_samples, "All detections" = combind_detection, "Precent single detections" = combind_percent_detection, "EIPAAB rank (1–870)" = eipaab_rank,
                 "Rank total detections (1–870)" = combind_rank_detection, "Rank  percent detections (1–713)*" = combind_rank_detection_percent) %>% 
   gt() %>% 
     fmt_number(
@@ -1025,93 +1028,320 @@ test_surfacewater %>%
     columns = everything()
   )
 ```
+
 <br>
 *Note: the rank for total percentage detections does not range from 1 to the number of compounds (i.e. 1–713) because percentage detections were only calculated where the number of single samples are greater than ten* 
 
+### Visualising
 
-### Results
-
-#NOTE: change to GLM
-There's massive skew in occurrence for specific compounds in both the UBA and EIPAAB database. There is generally, a positive correlation between the total detections in the UBA and occurrence in the EIAPAAB database (Spearman's rank correlation: rho = 0.46, p < 0.001; Fig 1).With that said, there are a number of compounds that occurrence frequently in the UBA that are not well represented in the EIPAAB database see below. These could be sensible targets for future behavioural tests. <br>
-
-Spearman's rank correlation between the number of detections in UBA and occurrence in the EIAPAAB database.
-
+#### Total detections 
+There's massive skew in occurrence for specific compounds in both the UBA and EIPAAB database, in terms of modelling it, there is likely going to be issues with overdispersion. We will use a negative binomial distribution.
 
 ```{r}
-cor_detection_results <- cor.test(test_surfacewater$combind_detection, test_surfacewater$eipaab_n, method = "spearman",
-         exact = NULL, conf.level = 0.95, continuity = FALSE)
-
-detection_effect_estimate <- cor_detection_results$estimate
-detection_effect_p <- cor_detection_results$p.value
-
-cor_detection_results
-```
-<br>
-Spearman's rank correlation between the percentage of detections and the occurrence in EIPAAB. Here we have used only single meassures and compounds that have more then ten samples in the UBA databases. The correlation is not statistically significant. 
-
-```{r}
-postive_cor_results <- cor.test(test_surfacewater$combind_percent_detection, test_surfacewater$eipaab_n, method = "spearman",
-         exact = NULL, conf.level = 0.95, continuity = FALSE)
-
-postive_cor_results
-
-postive_effect_estimate <- postive_cor_results$estimate
-postive_effect_p <- postive_cor_results$p.value
-```
-
-##### Fig 1a
-**Fig 1a:** the relationship between the number of detections in the PHARMS-UBA database for environmental occurrence of pharmaceuticals (Surface waters *only*), and the occurrence in the Evidence of the Impacts of Pharmaceuticals on Aquatic Animal Behaviour (EIPAAB) database.
-
-
-```{r}
-fig_1a <- test_surfacewater %>%
+visual_1 <- test_surfacewater %>% 
   dplyr::filter(!is.na(eipaab_n)) %>% 
-  dplyr::mutate(is_top5 = rank_detection_dif %in% 1:5) %>%   # Flag for top 5 points
-  ggplot(aes(x = combind_detection_log, y = eipaab_n_log, fill = rank_detection_dif, size = rank_detection_dif)) +
-  geom_smooth(colour = "#36454F", fill =  "#36454F", size =  NA, se = TRUE, linewidth = 2) +
-  geom_point(
-    aes(colour = is_top5, stroke = ifelse(is_top5, 1.5, 0.5)),  # Thicker outline for top 10
-    alpha = 0.6,
-    shape = 21
-  ) +
-  annotate(
-    "text",
-    x = min(test_surfacewater$combind_detection_log),  # Position at the top-left (adjust `x` as needed)
-    y = max(test_surfacewater$eipaab_n_log),  # Position at the top
-    label = paste0(
-      "Spearman's rank correlation", "\n",
-      "Effect size: ", round(detection_effect_estimate, 3), "\n",
-      "p-value: ", signif(detection_effect_p, 3)
-    ),
-    hjust = 0, vjust = 1,  # Align text to the top-left
-    size = 4
+  dplyr::arrange(rank_detection_dif) %>% 
+  dplyr::mutate(is_top5 = rank_detection_dif %in% 1:5) %>% 
+  ggplot() +
+  geom_point(aes(x = combind_detection, y = eipaab_n, size = combind_samples), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
+  geom_text_repel(
+    data = test_surfacewater %>% filter(!is.na(eipaab_n), rank_detection_dif %in% 1:5),
+    aes(x = combind_detection, y = eipaab_n, label = compound_name_corrected), 
+    size = 3, box.padding = 0.7, min.segment.length = 0, hjust = 0, vjust = 5
   ) +
   scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
   scale_colour_manual(
-    values = c("TRUE" = "black", "FALSE" = "black"),  # Golden colour for top 10
-    guide = "none"  # Remove legend for colour
+    values = c("TRUE" = "#01080A", "FALSE" = "#01080A"), 
+    guide = "none"
   ) +
-  geom_text_repel(
-    data = . %>% dplyr::filter(is_top5),  # Filter top 10 rank_diff_order
-    aes(label = compound_name_corrected),
-    size = 3,
-    box.padding = 0.7,
-    min.segment.length = 0,
-    hjust = 0, vjust = 5  # Adjust text position
+  labs(
+    title = "Tests vs detection frequency",
+    x = "Detections in Environmental Databases",
+    y = "Occurrence in EIPAAB",
+    size = "Number of samples"
   ) +
   theme_clean() +
-  labs(x = "Log count of detections in UBA",
-       y = "Log occurrence in EIPAAB",
-       fill = "Rank difference",
-       size = "Rank difference") +
-    theme(
-    legend.position = "bottom",  # Move legend to the top
-    legend.justification = "center"  # Align legend to the left
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
   )
-fig_1a
+
+visual_1
 ```
 <br>
-***Note:*** *the size and colour of the points represents the difference in the rank occurrence in EIPAAB versus the rank detections in UBA (i.e. rank EIPAAB - rank UBA), where larger values suggest that the compound is overrepresented in EIPAAB.*
+***Note:*** *the size of the points represents the total number of samples in the environmental databases. The five marked points represent those that are under represented in EIPAAB given the number of detections (i.e. rank EIPAAB - rank environmental detections).*
+
+
+#### Percentage detection
+
+There's massive skew in occurrence for specific compounds in both the UBA and EIPAAB database, in terms of modelling it, there is likely going to be issues with overdispersion. We will use a negative binomial distribution.
+
+```{r}
+visual_2 <- test_surfacewater %>% 
+  dplyr::filter(!is.na(eipaab_n)) %>% 
+  dplyr::arrange(rank_detection_percent_dif) %>% 
+  dplyr::mutate(is_top5 = rank_detection_percent_dif %in% 1:5) %>% 
+  ggplot() +
+  geom_point(aes(x = combind_percent_detection, y = eipaab_n, size = combind_samples), alpha = 0.4, shape = 21, color = "#01080A", fill = "#FBBC42") +
+  geom_text_repel(
+    data = test_surfacewater %>% filter(!is.na(eipaab_n), rank_detection_percent_dif %in% 1:5),
+    aes(x = combind_percent_detection, y = eipaab_n, label = compound_name_corrected), 
+    size = 3, box.padding = 0.7, min.segment.length = 0, hjust = 0, vjust = 5
+  ) +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  scale_colour_manual(
+    values = c("TRUE" = "#01080A", "FALSE" = "#01080A"), 
+    guide = "none"
+  ) +
+  labs(
+    title = "Tests vs percentage of detections",
+    x = "Percent Detections in Environmental Databases",
+    y = "Occurrence in EIPAAB",
+    size = "Number of samples"
+  ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+
+visual_2
+```
+<br>
+***Note:*** *the size of the points represents the total number of samples in the environmental databases. The five marked points represent those that are under represented in EIPAAB given the percentage of positive detections (i.e. rank EIPAAB - rank environmental detections).*
+
+### Modeling
+
+#### Total detections
+
+Here we will build a simple Bayesian negative binomial (log-link) regression model to look at the relationship between the two parameters. <br>
+
+```{r}
+detection_negbin_str <- bf(eipaab_n ~ combind_detection,
+               family = negbinomial())
+```
+
+These are the default priors <br>
+
+```{r}
+suppressWarnings(get_prior(detection_negbin_str, data = test_surfacewater, family = negbinomial()))
+```
+
+Run model. This has been hashed out as I have saved the model, and will re-load it instead of re-running it. <br>
+
+```{r}
+setwd(output_mod_wd)
+
+# detection_negbin_mod <- brm(detection_negbin_str,
+#                data = test_surfacewater,
+#                cores = 4,
+#                chains = 4,
+#                #prior = mod_priors, #use defaults
+#                warmup = 1000,
+#                seed = 20250418,
+#                thin = 2,
+#                iter = 8000,
+#                control = list(max_treedepth = 20, adapt_delta = 0.9999),
+#                save_pars = save_pars(all=TRUE),
+#                sample_prior = TRUE,
+#                file = 'detection_negbin_mod')
+print("Model complete")
+```
+
+##### Re-load models
+
+Reload the models if necessary
+
+```{r}
+setwd(output_mod_wd)
+
+detection_negbin_mod <-  readRDS(file = "detection_negbin_mod.rds")
+```
+
+
+##### Model diagnostics
+
+The R2 value is pretty low, but should be fine for the purposes of this investigation.
+
+```{r}
+performance::r2_bayes(detection_negbin_mod, robust = FALSE, ci = 0.95)
+```
+
+The mode generally follows the observed data, but isn't the best fit. Again, this should be fine for the purposes of this investigation
+
+```{r}
+brms::pp_check(detection_negbin_mod, ndraws = 50, type = "ecdf_overlay")
+```
+
+Checking R-hat values to confirm model convergence. 
+
+
+```{r}
+print(summary(detection_negbin_mod, prob = 0.95)) #All Rhat = 1 (good).
+```
+
+Diagnostic plots look fine. A smaller shape value indicates greater overdispersion (variance is much larger than the mean).
+
+```{r}
+plot(detection_negbin_mod)
+```
+##### Model estimates
+
+Pulling the conditional effect estimates from the model. The estimate corresponds to the effect of the predictor on the log of the expected response variable. A 1-unit increase (i.e. 1 detection) in the number of environmental detections increases the expected occurrence in EIPAAB database by 0.005% (i.e. (exp(4.950996e-05)-1)*100 = 0.004951119). In other words, for each 1000 detections we would expect a 5% increase in test in the EIPAAB database.
+
+```{r}
+# Extract estimates
+esitmates_1 <- conditional_effects(detection_negbin_mod)
+estimate_data_1 <- esitmates_1$combind_detection
+
+# Extract the summary as a data frame
+model_summary_1 <- as.data.frame(summary(detection_negbin_mod, prob = 0.95)$fixed)
+
+estimate_1 <- model_summary_1[2,1]
+L95CI_1 <- model_summary_1[2,3]
+H95CI_1 <- model_summary_1[2,4]
+estimate_percent_1 <- (exp(estimate_1)-1)*100
+L95CI_percent_1 <- (exp(L95CI_1)-1)*100
+H95CI_percent_1 <- (exp(H95CI_1)-1)*100
+```
+
+
+#### Percentage detections
+
+```{r}
+percent_detection_negbin_str <- bf(eipaab_n ~ combind_percent_detection,
+               family = negbinomial())
+```
+
+Run model. This has been hashed out as I have saved the model, and will re-load it instead of re-running it. <br>
+
+```{r}
+setwd(output_mod_wd)
+
+# percent_detection_negbin_mod <- brm(percent_detection_negbin_str,
+#                data = test_surfacewater,
+#                cores = 4,
+#                chains = 4,
+#                #prior = mod_priors, #use defaults
+#                warmup = 1000,
+#                seed = 20250418,
+#                thin = 2,
+#                iter = 8000,
+#                control = list(max_treedepth = 20, adapt_delta = 0.9999),
+#                save_pars = save_pars(all=TRUE),
+#                sample_prior = TRUE,
+#                file = 'percent_detection_negbin_mod')
+print("Model complete")
+```
+
+##### Re-load models
+
+Reload the models if necessary
+
+```{r}
+setwd(output_mod_wd)
+
+percent_detection_negbin_mod <-  readRDS(file = "percent_detection_negbin_mod.rds")
+```
+
+
+##### Model diagnostics
+
+The R2 value is pretty low, but should be fine for the purposes of this investigation
+
+```{r}
+performance::r2_bayes(percent_detection_negbin_mod, robust = FALSE, ci = 0.95)
+```
+
+```{r}
+brms::pp_check(percent_detection_negbin_mod, ndraws = 100, type = "ecdf_overlay")
+```
+
+Checking R-hat values to confirm model convergence. 
+
+```{r}
+print(summary(percent_detection_negbin_mod, prob = 0.95)) #All Rhat = 1 (good).
+```
+
+```{r}
+plot(percent_detection_negbin_mod)
+```
+
+##### Model estimates
+
+Pulling the conditional effect estimates from the model. The estimate corresponds to the effect of the predictor on the log of the expected response variable. A 1-unit increase (i.e. 1%) in the percentage of environmental detections increases the expected occurrence in EIPAAB database by 1.17% (i.e. (exp(0.01160477)-1)*100 = 1.167237).
+
+```{r}
+# Extract estimates
+esitmates_2 <- conditional_effects(percent_detection_negbin_mod)
+estimate_data_2 <- esitmates_2$combind_percent_detection
+
+# Extract the summary as a data frame
+model_summary_2 <- as.data.frame(summary(percent_detection_negbin_mod, prob = 0.95)$fixed)
+
+estimate_2 <- model_summary_2[2,1]
+L95CI_2 <- model_summary_2[2,3]
+H95CI_2 <- model_summary_2[2,4]
+estimate_percent_2 <- (exp(estimate_2)-1)*100
+L95CI_percent_2 <- (exp(L95CI_2)-1)*100
+H95CI_percent_2 <- (exp(H95CI_2)-1)*100
+```
+
+### Results 
+
+#### Total detections
+
+There is generally a small positive correlation between the total environmental detections in the surface water data and occurrence in the EIAPAAB database (Fig 1; Bayesian negative binomial regression estimate: 4.950996e-05 [1.490186e-05, 9.115236e-05]). With that said, there are a number of compounds that occurrence frequently in the surface waters that are not well represented in the EIPAAB database (see Table 3 below). These could be sensible targets for future behavioural tests. <br>
+
+##### Fig 1a
+
+**Fig 1a:** the relationship between the number of surface water detections for pharmaceuticals in environmental databases (Norman, UBA and Wilkson) and the occurrence in the Evidence of the Impacts of Pharmaceuticals on Aquatic Animal Behaviour (EIPAAB) database.
+
+```{r}
+fig_1a <- ggplot() +
+  geom_line(data = estimate_data_1, aes(x = combind_detection, y = estimate__), color = "#1c4595", size = 1) +
+  geom_ribbon(data = estimate_data_1, aes(x = combind_detection, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
+  geom_point(data = test_surfacewater %>% filter(!is.na(eipaab_n)) %>% dplyr::arrange(rank_detection_dif) %>% 
+               mutate(is_top5 = rank_detection_dif %in% 1:5), aes(x = combind_detection, y = eipaab_n, size = combind_samples), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
+  # Add text annotation
+  annotate(
+    "text",
+    x = max(test_surfacewater$combind_detection, na.rm = TRUE)/2, 
+    y = max(test_surfacewater$eipaab_n, na.rm = TRUE), 
+    label = paste0(
+      "Bayesian negative binomial regression", "\n",
+      "Effect estimate (%): ", round(estimate_percent_1, 3), "\n",
+      "CI: ", round(L95CI_percent_1, 3), " - ", round(H95CI_percent_1, 3)
+    ),
+    hjust = 0, vjust = 1, size = 4
+  ) +
+  geom_text_repel(
+    data = test_surfacewater %>% filter(!is.na(eipaab_n), rank_detection_dif %in% 1:5),
+    aes(x = combind_detection, y = eipaab_n, label = compound_name_corrected), size = 3, box.padding = 0.7
+  ) +
+  # Adjust scales
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  scale_colour_manual(
+    values = c("TRUE" = "#01080A", "FALSE" = "#01080A"), guide = "none"
+    ) +
+  labs(
+    title = "Test vs detection frequency",
+    x = "Detections in Environmental Databases",
+    y = "Occurrence in EIPAAB",
+    fill = "Rank Difference",
+    size = "Rank Difference"
+  ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+
+fig_1a
+```
+
+<br>
+***Note:*** *the size of the points represents the total number of samples in the environmental databases. The five marked points represent those that are under represented in EIPAAB given the number of detections (i.e. rank EIPAAB - rank environmental detections).*
 
 <br>
 This code saves the figure above as PDF
@@ -1124,9 +1354,9 @@ ggsave(filename = paste0(output_fig_wd, "./figure-1a.pdf"),
        units = "mm")
 ```
 
-#### Table 3
+##### Table 3
 <br>
-**Table 3:** The compounds with the largest number of samples in across all three environmental databases that are not present in EIPAAB.
+**Table 3:** Compounds with the most environmental detections that are not present in EIPAAB.
 
 ```{r}
 test_surfacewater %>% 
@@ -1147,59 +1377,54 @@ test_surfacewater %>%
   )
 ```
 
+#### Percentage detections
+
 ##### Fig 1b
-**Fig 1b:** the relationship between the number of detections in the PHARMS-UBA database for environmental occurrence of pharmaceuticals (Surface waters, WWTP inflow/effluent, Treated/Untreated sewage, *only*), and the occurance in the Evidence of the Impacts of Pharmaceuticals on Aquatic Animal Behaviour (EIPAAB) database.
+**Fig 1b:** the relationship between the percentage of surface water detections for pharmaceuticals in environmental databases (Norman, UBA and Wilkson) and the occurrence in the Evidence of the Impacts of Pharmaceuticals on Aquatic Animal Behaviour (EIPAAB) database.
 
 
 ```{r}
-fig_1b <- test_surfacewater %>%
-  dplyr::filter(!is.na(eipaab_n) & !is.na(combind_percent_detection)) %>% 
-  dplyr::mutate(is_top5 = rank_detection_percent_dif %in% 1:5) %>%   # Flag for top 5 points
-  ggplot(aes(x = combind_percent_detection, y = eipaab_n_log, fill = rank_detection_percent_dif, size = rank_detection_percent_dif)) +
-  geom_smooth(colour = "#36454F", fill =  "#36454F", size =  NA, se = TRUE, linewidth = 2) +
-  geom_point(
-    aes(colour = is_top5, stroke = ifelse(is_top5, 1.5, 0.5)),  # Thicker outline for top 10
-    alpha = 0.6,
-    shape = 21
-  ) +
+fig_1b <- ggplot() +
+  geom_line(data = estimate_data_2, aes(x = combind_percent_detection, y = estimate__), color = "#1c4595", size = 1) +
+  geom_ribbon(data = estimate_data_2, aes(x = combind_percent_detection, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
+  geom_point(data = test_surfacewater %>% filter(!is.na(eipaab_n)) %>% dplyr::arrange(rank_detection_percent_dif) %>% 
+               mutate(is_top5 = rank_detection_percent_dif %in% 1:5), 
+             aes(x = combind_percent_detection, y = eipaab_n, size = combind_singles), alpha = 0.4, shape = 21, color = "#01080A", fill = "#fbbc42") +
   annotate(
     "text",
-    x = min(test_surfacewater$combind_percent_detection, na.rm = TRUE),  # Position at the top-left (adjust `x` as needed)
-    y = max(test_surfacewater$eipaab_n_log, na.rm = TRUE),  # Position at the top
+    x = 40, 
+    y = max(test_surfacewater$eipaab_n, na.rm = TRUE), 
     label = paste0(
-      "Spearman's rank correlation", "\n",
-      "Effect size: ", round(postive_effect_estimate, 3), "\n",
-      "p-value: ", signif(postive_effect_p, 3)
+      "Bayesian negative binomial regression", "\n",
+      "Effect estimate (%): ", round(estimate_percent_2, 3), "\n",
+      "CI: ", round(L95CI_percent_2, 3), " - ", round(H95CI_percent_2, 3)
     ),
-    hjust = 0, vjust = 1,  # Align text to the top-left
-    size = 4
-  ) +
-  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
-  scale_colour_manual(
-    values = c("TRUE" = "black", "FALSE" = "black"),  # Golden colour for top 10
-    guide = "none"  # Remove legend for colour
+    hjust = 0, vjust = 1, size = 4
   ) +
   geom_text_repel(
-    data = . %>% dplyr::filter(is_top5),  # Filter top 10 rank_diff_order
-    aes(label = compound_name_corrected),
-    size = 3,
-    box.padding = 0.7,
-    min.segment.length = 0,
-    hjust = 0, vjust = 5  # Adjust text position
+    data = test_surfacewater %>% filter(!is.na(eipaab_n), rank_detection_percent_dif %in% 1:5),
+    aes(x = combind_percent_detection, y = eipaab_n, label = compound_name_corrected), size = 3, box.padding = 0.7
+    ) +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  scale_colour_manual(
+    values = c("TRUE" = "#01080A", "FALSE" = "#01080A"), guide = "none") +
+  labs(
+    title = "Test vs Percentage Detections",
+    x = "Percentage detections in Environmental Databases",
+    y = "Occurrence in EIPAAB",
+    size = "Number of single samples"
   ) +
   theme_clean() +
-  labs(x = "Precent detection (%)",
-       y = "Log occurrence in EIPAAB",
-       fill = "Rank difference",
-       size = "Rank difference") +
-    theme(
-    legend.position = "bottom",  # Move legend to the top
-    legend.justification = "center"  # Align legend to the left
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
   )
+
 fig_1b
 ```
 
 #### Table 4
+
 **Table 4:** The compounds with the highest detection rate not found in the EIPAAB database
 
 ```{r}
