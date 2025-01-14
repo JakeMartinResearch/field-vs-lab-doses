@@ -929,6 +929,8 @@ all_databases %>%
 
 Let's check if there is a correlation between detections and percentage of positive detections in the environmental databases and number of tests in the EIPAAB databases. <br>
 
+# Detections
+
 ### Summary statistics
 
 Here we make a summary data frame for each compound, **all_surfacewater**, that includes the number of samples,the number of positive detections (based on single samples, not summary statistics), the rank order of detections, the percentage of positive detections (only for compounds with more then 10 sample units), and the rank order of percentage of positive detection. <br>
@@ -1004,9 +1006,9 @@ uba_rank_detection_percent_max <- test_surfacewater %>%
 ```
 
 
-#### Table 2
+#### Table 1
 
-**Table 2:** the 10 most common compounds in EIPAAB versus occurrence and detection frequency in UBA surface waters
+**Table 1:** the 10 most common compounds in EIPAAB versus occurrence and detection frequency in UBA surface waters
 UBA samples
 
 ```{r}
@@ -1354,9 +1356,9 @@ ggsave(filename = paste0(output_fig_wd, "./figure-1a.pdf"),
        units = "mm")
 ```
 
-##### Table 3
+##### Table 2
 <br>
-**Table 3:** Compounds with the most environmental detections that are not present in EIPAAB.
+**Table 2:** Compounds with the most environmental detections that are not present in EIPAAB.
 
 ```{r}
 test_surfacewater %>% 
@@ -1423,9 +1425,9 @@ fig_1b <- ggplot() +
 fig_1b
 ```
 
-#### Table 4
+##### Table 3
 
-**Table 4:** The compounds with the highest detection rate not found in the EIPAAB database
+**Table 3:** The compounds with the highest detection rate not found in the EIPAAB database
 
 ```{r}
 test_surfacewater %>%
@@ -1448,15 +1450,11 @@ test_surfacewater %>%
 
 ## Concentration 
 
-For questions around concentration, I have filtered for only cases where the levels are above zero or above the limit of detection (i.e. positive detections or above LOD). This was done for two reasons, the first being that when researchers are trying to estimate the risk of environmental exposure, we assume that they are emulating potential exposure events at a contaminated site, not trying to replicate a global surface water average. The second is that, by removing zero values and values below LODs, we are trying to be ***more conservative*** with the relative comparison between tested doses in behavioural ecotoxicology and observed environmental doses (as opposed to using some value substitute/estimated value for samples below detection limit). We are also using both single values and summary values of central tendency (means, median, ect).
- 
- <br>
+For questions around concentration, I will filtered for only cases where the levels are above zero or above the limit of detection (i.e. positive detections or above LOD). We will do this for two reasons, the first being that when researchers are trying to estimate the risk of environmental exposure, we assume that they are emulating potential exposure events at a contaminated site, not trying to replicate a theoretical global surface water average. The second is, by removing zero values and values below LODs, we are trying to be ***more conservative*** with the relative comparison between tested doses in behavioural ecotoxicology and observed environmental doses (as opposed to using some value substitute/estimated value for samples below detection limit). We are also using both single values and summary values of central tendency (means, median, ect). <br>
 
-In this section we are calculating summary metrics for concentrations used in the behavioural test and for UBA. We will do this separately for effluent and surface waters samples. We are calculating, the mean, median, min, max, range, n (number of contributing data points), standard deviation (sd), standard error (se), and the upper and lower 95% credible intervals (ci_upper, ci_lower).
+In this section we are calculating summary metrics for concentrations used in the behavioural test and detected in surface waters and effluent in the enviromental data. We will do this separately for effluent and surface waters samples. We are calculating, the mean, median, min, max, range, n (number of contributing data points), standard deviation (sd), standard error (se), and the upper and lower 95% credible intervals (ci_upper, ci_lower).
 
 ```{r}
-select_matrix_group <- c("surfacewater", "test")
-
 conc_summary <- all_databases %>% 
   dplyr::filter(value > 0) %>% 
   dplyr::group_by(matrix_group, compound_name_corrected) %>% 
@@ -1477,9 +1475,8 @@ conc_summary <- all_databases %>%
   )
 ```
 
-
 <br>
-Here we will add the summary statistics from above to the full eipaab_uba database, so we can see how many EIPAAB tested concentrations fall under the median surface water and effluent concentrations for each compound.
+Here we will add the summary statistics from above to the full database, so we can see how many EIPAAB tested concentrations fall under the median surface water and effluent concentrations for each compound.
 
 ```{r}
 rename_cols <- conc_summary %>% 
@@ -1543,8 +1540,247 @@ conc_summary <- all_databases_with_sum %>%
   dplyr::mutate(across(everything(), ~ ifelse(is.nan(.), NA, .)))
 ```
 
-### Results
+#### Results
 
 For the X compounds in the EIPAAB database that had associated data in UBA (representing 1,440 exposures), only X% and X% employed test concentrations lower then median and upper 95% credible interval of surface water concentrations, respectively (Table 4). Further, only X% and X% employed test concentrations lower then median and upper 95% credible interval of wastewater treatment plant effluent (Table 4). On average, concentrations used in behavioural ecotoxicology were X times higher then median surf water concentrations, and X times higher then those in effluent. <br>
+
+##### Table 4
+
+**Table 4:** The number of exposures in the EIPAAB database that used concentrations less then median and upper 95% credible interval of surface water and effluent concentrations
+
+```{r}
+surf <- conc_summary %>% 
+  dplyr::select(n_sw, less_med_sw, less_hci_sw, fdiff_med_sw, fdiff_hci_sw, percent_less_med_sw, percent_less_hic_sw) %>% 
+  dplyr::rename(total_n = n_sw, less_med = less_med_sw, less_hci = less_hci_sw, fdiff_med = fdiff_med_sw, fdiff_hci = fdiff_hci_sw, percent_less_med = percent_less_med_sw, percent_less_hic = percent_less_hic_sw) %>% 
+  dplyr::mutate(matrix = "Surface water")
+
+effluent <- conc_summary %>% 
+  dplyr::select(n_ef, less_med_ef, less_hci_ef, fdiff_med_ef, fdiff_hci_ef, percent_less_med_ef, percent_less_hic_ef) %>% 
+  dplyr::rename(total_n = n_ef, less_med = less_med_ef, less_hci = less_hci_ef, fdiff_med = fdiff_med_ef, fdiff_hci = fdiff_hci_ef, percent_less_med = percent_less_med_ef, percent_less_hic = percent_less_hic_ef) %>% 
+  dplyr::mutate(matrix = "Effluent")
+
+rbind(surf, effluent) %>% 
+  dplyr::select(matrix, everything()) %>% 
+  dplyr::mutate(percent_less_med = round(percent_less_med, 2),
+                percent_less_hic = round(percent_less_hic, 2),
+                fdiff_med = round(fdiff_med, 2),
+                fdiff_hci = round(fdiff_hci, 2)) %>% 
+  dplyr::rename(Matrix = matrix, 'Total tests' = total_n, 'Dose less than median' = less_med, 'Dose less than upper 95%CI' = less_hci, "Mean-fold differene from median" = fdiff_med, "Mean-fold differene from upper 95%CI" = fdiff_hci, 'Percent less than median (%)' = percent_less_med, 'Percent less than upper 95%CI (%)' = percent_less_hic) %>% 
+  gt() %>% 
+  fmt_number(
+    columns = 'Total tests', 
+    decimals = 0
+  ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+<br>
+Now we will make a summary for each compound
+
+```{r}
+sample_counts <- all_databases_with_sum %>% 
+  dplyr::select(compound_name_corrected, surfacewater_n, effluent_n) %>% 
+  group_by(compound_name_corrected) %>% 
+  dplyr::slice(1) %>% 
+  ungroup()
+
+under_levels <- all_databases_with_sum %>% 
+  dplyr::group_by(compound_name_corrected) %>% 
+  dplyr::reframe(eipaab_n = length(unique_row_id),
+                 n_sw = sum(!is.na(under_med_surf)),
+                 less_med_sw = sum(under_med_surf, na.rm = TRUE),
+                 less_hci_sw = sum(under_hci_surf, na.rm = TRUE),
+                 prop_less_med_sw = less_med_sw/n_sw,
+                 prop_less_hic_sw = less_hci_sw/n_sw,
+                 n_ef = sum(!is.na(under_med_effl)),
+                 less_med_ef = sum(under_med_effl, na.rm = TRUE),
+                 less_hci_ef = sum(under_hci_effl, na.rm = TRUE),
+                 prop_less_med_ef = less_med_ef/n_ef,
+                 prop_less_hic_ef = less_hci_ef/n_ef,
+                 fdiff_med_sw = median(diff_med_surf, na.rm = TRUE),
+                 fdiff_hci_sw = median(diff_hic_surf, na.rm = TRUE),
+                 fdiff_med_ef = median(diff_med_effl, na.rm = TRUE),
+                 fdiff_hci_ef = median(diff_hic_effl, na.rm = TRUE),
+                 ) %>% 
+  dplyr::left_join(., sample_counts, by = "compound_name_corrected") %>% 
+  dplyr::mutate(across(everything(), ~ ifelse(is.nan(.), NA, .)))
+```
+
+##### Fig 2a
+
+**Fig 2a.** The median fold difference in tested concentrations in EIPAAB and median surface water concentration (i.e. tested dose / median surface water concentration)
+
+```{r, fig.height=15, fig.width=5}
+fdiff_med_sw_order <- under_levels %>% 
+  dplyr::filter(!is.na(fdiff_med_sw)) %>% 
+  dplyr::arrange(desc(fdiff_med_sw)) %>% 
+  dplyr::mutate(order = 1:nrow(.),
+                compound_name_corrected = sentence_case(compound_name_corrected)) %>% 
+  pull(compound_name_corrected)
+
+vline_data <- data.frame(xintercept = log(10^(0:9)),
+                         xlabs = as.character(10^(0:9))) %>% 
+  dplyr::mutate(xlabs = paste0("×",xlabs))
+
+median <- conc_summary %>% 
+  dplyr::pull(fdiff_med_sw) %>% 
+  log()
+
+fig_2a <- under_levels %>% 
+  dplyr::filter(!is.na(fdiff_med_sw)) %>% 
+  dplyr::mutate(compound_name_corrected = sentence_case(compound_name_corrected),
+                compound_name_corrected = factor(compound_name_corrected, levels = rev(fdiff_med_sw_order))) %>% 
+  ggplot(aes(x = log(fdiff_med_sw), y = compound_name_corrected, size = eipaab_n, fill = log(surfacewater_n))) +
+  geom_vline(data = vline_data, aes(xintercept = xintercept), linetype = "dashed", colour = "black") +
+  geom_vline(xintercept = median, color = "darkred") +
+  geom_text(data = vline_data, aes(x = xintercept, y = "Risperidone", label = xlabs), inherit.aes = FALSE, angle = 90, vjust = -0.5, hjust = 1, size = 3) +
+  geom_point(alpha = 0.5, shape = 21) +
+  theme_classic() +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center",  # Align legend to the left
+  ) +
+  labs(
+    subtitle = "Tested concentrations vs median surfwater water",
+    x = "Log mean fold difference between tested and median surfwater water concentrations",
+    y = "Compounds",
+    size = "EIPAAB data",
+    fill = "Environmental data"
+  ) +
+    theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center"  # Align legend to the left
+  )
+
+fig_2a
+```
+
+<br>
+***Note:*** *the size of the points represent the number of occurrence in EIPAAB, and colour of the point represents the number of detections in the environmental databases* 
+
+<br>
+Save the figure
+
+```{r}
+ggsave(filename = paste0(output_fig_wd, "./figure-2a.pdf"), 
+       plot = fig_2a,
+       width = 210/2,
+       height = 297,  # Specify the height of the plot
+       units = "mm")
+```
+
+##### Fig 2b
+
+**Fig 2a.** The median fold difference in tested concentrations in EIPAAB and median effluent concentration (i.e. tested dose / median effluent concentration)
+
+```{r, fig.height=15, fig.width=5}
+fdiff_med_ef_order <- under_levels %>% 
+  dplyr::filter(!is.na(fdiff_med_ef)) %>% 
+  dplyr::arrange(desc(fdiff_med_ef)) %>% 
+  dplyr::mutate(order = 1:nrow(.),
+                compound_name_corrected = sentence_case(compound_name_corrected)) %>% 
+  pull(compound_name_corrected)
+
+vline_data <- data.frame(xintercept = log(10^(0:9)),
+                         xlabs = as.character(10^(0:9))) %>% 
+  dplyr::mutate(xlabs = paste0("×",xlabs))
+
+median <- conc_summary %>% 
+  dplyr::pull(fdiff_med_ef) %>% 
+  log()
+
+fig_2b <- under_levels %>% 
+  dplyr::filter(!is.na(fdiff_med_ef)) %>% 
+  dplyr::mutate(compound_name_corrected = sentence_case(compound_name_corrected),
+                compound_name_corrected = factor(compound_name_corrected, levels = rev(fdiff_med_ef_order))) %>% 
+  ggplot(aes(x = log(fdiff_med_ef), y = compound_name_corrected, size = eipaab_n, fill = log(surfacewater_n))) +
+  geom_vline(data = vline_data, aes(xintercept = xintercept), linetype = "dashed", colour = "black") +
+  geom_vline(xintercept = median, color = "darkred") +
+  geom_text(data = vline_data, aes(x = xintercept, y = "Lorazepam", label = xlabs), inherit.aes = FALSE, angle = 90, vjust = -0.5, hjust = 1, size = 3) +
+  geom_point(alpha = 0.5, shape = 21) +
+  theme_classic() +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center",  # Align legend to the left
+  ) +
+  labs(
+    subtitle = "Tested concentrations vs median surfwater water",
+    x = "Log mean fold difference between tested and median surfwater water concentrations",
+    y = "Compounds",
+    size = "EIPAAB data",
+    fill = "Environmental data"
+  ) +
+    theme(
+    legend.position = "bottom",  # Move legend to the top
+    legend.justification = "center"  # Align legend to the left
+  )
+
+fig_2b
+```
+
+<br>
+***Note:*** *the size of the points represent the number of occurrence in EIPAAB, and colour of the point represents the number of detections in the environmental databases* 
+
+<br>
+Save the figure
+
+```{r}
+ggsave(filename = paste0(output_fig_wd, "./figure-2b.pdf"), 
+       plot = fig_2b,
+       width = 210/2,
+       height = 297,  # Specify the height of the plot
+       units = "mm")
+```
+
+<br>
+
+Looking at the number of compounds in the database that have data at concentrations below median and upper 95 CI
+
+##### Table 5
+
+**Table 5:** The percentage of compounds in the EIPAAB database that have data at concentrations less then median and upper 95% credible interval of surface water and effluent concentrations
+
+```{r}
+compound_sum_table_surf <- under_levels %>% 
+  dplyr::reframe(total_compounds =  sum(!is.na(prop_less_med_sw)),
+                 count_less_med_sw = sum(prop_less_med_sw == 0, na.rm = TRUE),
+                 count_less_hic_sw = sum(prop_less_hic_sw == 0, na.rm = TRUE),
+                 percent_less_med_sw = (count_less_med_sw/total_compounds)*100,
+                 percent_less_hic_sw = (count_less_hic_sw/total_compounds)*100,
+                 "Percent with no data under median concentration" = paste0(round(percent_less_med_sw, 2), "%", " (", count_less_med_sw, " of ", total_compounds, ")"),
+                 "Percent with no data under upper 95 CI concentration" = paste0(round(percent_less_hic_sw, 2), "%", " (", count_less_hic_sw, " of ", total_compounds, ")")
+                 ) %>% 
+  dplyr::mutate(Matrix = "Surface water") %>% 
+  dplyr::select(Matrix,  "Percent with no data under median concentration", "Percent with no data under upper 95 CI concentration")
+
+compound_sum_table_eff <- under_levels %>% 
+  dplyr::reframe(total_compounds =  sum(!is.na(prop_less_med_ef)),
+                 count_less_med_ef = sum(prop_less_med_ef == 0, na.rm = TRUE),
+                 count_less_hic_ef = sum(prop_less_hic_ef == 0, na.rm = TRUE),
+                 percent_less_med_ef = (count_less_med_ef/total_compounds)*100,
+                 percent_less_hic_ef = (count_less_hic_ef/total_compounds)*100,
+                 "Percent with no data under median concentration" = paste0(round(percent_less_med_ef, 2), "%", " (", count_less_med_ef, " of ", total_compounds, ")"),
+                 "Percent with no data under upper 95 CI concentration" = paste0(round(percent_less_hic_ef, 2), "%", " (", count_less_hic_ef, " of ", total_compounds, ")")
+                 ) %>% 
+  dplyr::mutate(Matrix = "Effluent") %>% 
+  dplyr::select(Matrix,  "Percent with no data under median concentration", "Percent with no data under upper 95 CI concentration")
+
+compound_sum_table <-  rbind(compound_sum_table_surf, compound_sum_table_eff)
+
+compound_sum_table %>% 
+  gt() %>% 
+  fmt_number(
+    columns = c("Percent with no data under median concentration", "Percent with no data under upper 95 CI concentration"), 
+    decimals = 0
+  ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
 
 
