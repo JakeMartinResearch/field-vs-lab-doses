@@ -519,9 +519,9 @@ We **do not need to filter** the Wilkson database, all analytes are pharmaceutic
 
 This part of the code relates to the NORMAN EMPODAT Database - Chemical Occurrence Data (https://www.norman-network.com/nds/empodat/chemicalSearch.php?s=new). This database was searched for all compounds, all countries, all years, all data sources, all organisations, all laboratories, for Surface water (Sea water, River water, Lake water, Transitional water, Coastal water, Territorial (marine) water, Reservoirs, Others) and Waste water (Urban, Industrial, Municipal, Other) Ecosystems/matrices on 19-12-2024 <br>
 
-The complete surface water NORMAN dataset is very large (24.2 GB) so I have not uploaded it to GitHub, as a result I have hashed out the below code that was used to import and tidy the complete data set. In a later step I have made a new filtered CSV file called "norman_pham_Surface_water_2024-12-19-214810.csv" which has only compounds of interest. This data file is also to large for a standard remote git repository, is uploaded separately on the OSF framework please download it from here <br>
-
-#*LINK*
+The complete surface water and effluent NORMAN dataset are very large so I have not uploaded it to GitHub, as a result I have hashed out the below code that was used to import and tidy the complete data set. In a later step I have made a new filtered CSV files called "norman_pham_Surface_water_2024-12-19-214810.csv" and "norman_pham_Waste_water_2025-01-09-222202.csv" which has only compounds of interest. The "norman_pham_Surface_water_2024-12-19-214810.csv" data file is also to large for a standard remote git repository (> 100,000 KB), I have uploaded separately on the OSF framework (DOI: 10.17605/OSF.IO/QDGFJ) please download it from here <br>
+<br>
+*Download 'norman_pham_Surface_water_2024-12-19-214810.csv': *: https://osf.io/qdgfj/
 
 ```{r}
 # setwd(input_wd)
