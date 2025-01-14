@@ -128,7 +128,8 @@ pacman::p_load("ggplot2",
                "colorspace", 
                "ggrepel", 
                "ggdist",
-               "gt", # data visualisation
+               "gt",
+               "webshot2", # data visualisation
                
                "data.table",
                "stringr",
@@ -905,29 +906,102 @@ all_databases <- all_databases %>%
   ))
 ```
 
-<br>
-In total, there are 950 unique compound names that we will consider for this analysis.
+
+## Database numbers
+
+Let's see how much data is present in the filtered and combined databases.
 
 ```{r}
-all_databases %>% 
-  dplyr::reframe(n_compounds = length(unique(compound_name_corrected)))
+total_compounds_eipaab <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  nrow(.)
+
+total_water_samples <- all_databases %>% 
+  dplyr::filter(source != "eipaab") %>% 
+  dplyr::reframe(n = sum(n_units_est, na.rm = TRUE)) %>% 
+  dplyr::pull(n)
+  
+paste0("There are ", total_compounds_eipaab, " behavioural ecotoxicology exposures and ", total_water_samples, " water samples")
 ```
 
-<br>
-This includes 184 from EIPAAB, 673 in Norman, 910 in UBA and 61 in Wilkson.
-
 ```{r}
-all_databases %>% 
+total_data <- all_databases %>% 
   dplyr::group_by(source) %>% 
-  dplyr::reframe(n_compounds = length(unique(compound_name_corrected)))
-```
+  dplyr::reframe(Data = sum(n_units_est, na.rm = TRUE)) %>% 
+  dplyr::rename(Source = source) %>% 
+  dplyr::mutate(Source = case_when(
+    Source == "eipaab" ~ "EIPAAB",
+    Source == "norman" ~ "NORMAN*",
+    Source == "uba" ~ "PHARMS-UBA",
+    Source == "wilkson" ~ "Wilkson et al.",
+  ))
 
+total_data %>% 
+  gt() %>% 
+    fmt_number(
+    columns = "Data",
+    decimals = 0
+    ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+*Note: the NORMAN database was filtered to include only compounds fund in the other databases, so this is not a true representation of the total number of pharmaceutical samples present in the NORMAN database.*
+
+<br>
+Number of compounds in each database
+
+```{r}
+n_compounds <- all_databases %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::reframe("Number of compounds" = length(unique(compound_name_corrected))) %>% 
+  dplyr::rename(Source = source) %>% 
+  dplyr::mutate(Source = case_when(
+    Source == "eipaab" ~ "EIPAAB",
+    Source == "norman" ~ "NORMAN*",
+    Source == "uba" ~ "PHARMS-UBA",
+    Source == "wilkson" ~ "Wilkson et al.",
+  ))
+
+n_compounds %>% 
+    gt() %>% 
+    fmt_number(
+    columns = "Number of compounds",
+    decimals = 0
+    ) %>% 
+  cols_align(
+    align = "center", 
+    columns = everything()
+  )
+```
+*Note: the NORMAN database was filtered to include only compounds fund in the other databases, so this is not a true representation of the total number of different pharmaceuticals present in the NORMAN database.*
 
 #####################
 # Analysis 
 ####################
 
-Let's check if there is a correlation between detections and percentage of positive detections in the environmental databases and number of tests in the EIPAAB databases. <br>
+# Cross-over
+
+```{r}
+eipaab_compounds_list <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::pull(compound_name_corrected)
+
+n_eipaab_compounds <- length(eipaab_compounds_list)
+
+enviro__cross_over_compounds_list <- all_databases %>% 
+  dplyr::filter(source != "eipaab" & compound_name_corrected %in% eipaab_compounds_list) %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::pull(compound_name_corrected)
+
+n_cross_over_compounds <- length(enviro__cross_over_compounds_list)
+
+percent_cross_over = round(n_cross_over_compounds/n_eipaab_compounds*100,2)
+
+paste0(n_cross_over_compounds, " of the ", n_eipaab_compounds, " pharmaceuticals tested in the EIPAAB database (with an environmental motivation) were present in the environmental databasess (i.e. ", percent_cross_over, "%)")
+```
 
 # Detections
 
@@ -1005,10 +1079,8 @@ uba_rank_detection_percent_max <- test_surfacewater %>%
   dplyr::pull(combind_rank_detection_percent)
 ```
 
-
-#### Table 1
-
-**Table 1:** the 10 most common compounds in EIPAAB versus occurrence and detection frequency in UBA surface waters
+<br>
+Let's look at the 10 most common compounds in EIPAAB versus occurrence and detection frequency in UBA surface waters
 UBA samples
 
 ```{r}
@@ -1111,6 +1183,114 @@ visual_2
 ```
 <br>
 ***Note:*** *the size of the points represents the total number of samples in the environmental databases. The five marked points represent those that are under represented in EIPAAB given the percentage of positive detections (i.e. rank EIPAAB - rank environmental detections).*
+
+
+#### Temporal trends
+
+Here we will look at temporal trends using only EIPAAB, UBA and NORMAN data. 
+
+```{r}
+temporal_trends <- all_databases %>% 
+  dplyr::filter(source != "wilkson") %>% 
+  dplyr::mutate(group_type = if_else(source == "eipaab", "test", "environmental")) %>% 
+  dplyr::group_by(group_type, year) %>% 
+  dplyr::reframe(n_samples = sum(n_units_est, na.rm = TRUE),
+                 n_compounds = length(unique(compound_name_corrected))) %>% 
+  tidyr::complete(group_type, year) %>% 
+  dplyr::filter(!is.na(year)) %>% 
+  dplyr::group_by(group_type) %>% 
+  dplyr::mutate(n_samples_z = scale(n_samples)) %>% 
+  dplyr::ungroup()
+```
+ 
+Let's look at the total number of samples per year
+
+```{r}
+temporal_trends %>% 
+  dplyr::filter(year > 1999 & year < 2021) %>% 
+  ggplot(aes(x = year, y = n_samples)) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(~group_type, scales = "free",
+             labeller = labeller(group_type = c(
+               "environmental" = "Environmental data",
+               "test" = "Behavioural ecotoxicology data")) 
+             ) +
+    labs(
+    title = "Data over time",
+    x = "Year",
+    y = "Data points (tests or water samples)"
+    ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+```
+
+Now the number of different compounds per year
+
+```{r}
+temporal_trends %>% 
+  dplyr::filter(year > 1999 & year < 2021) %>% 
+  ggplot(aes(x = year, y = n_compounds, size = n_samples_z)) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(~group_type, scales = "free",
+             labeller = labeller(group_type = c(
+               "environmental" = "Environmental data",
+               "test" = "Behavioural ecotoxicology data")) 
+             ) +
+    labs(
+    title = "Number of compounds over time",
+    x = "Year",
+    y = "Data points (tests or water samples)"
+    ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+```
+
+
+```{r}
+eipaab_compounds_list <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::pull(compound_name_corrected)
+
+temporal_trends_by_compound <- all_databases %>% 
+  dplyr::filter(source != "wilkson" & compound_name_corrected %in% eipaab_compounds_list) %>% 
+  dplyr::mutate(group_type = if_else(source == "eipaab", "test", "environmental")) %>% 
+  dplyr::group_by(group_type, year, compound_name_corrected) %>% 
+  dplyr::reframe(n_samples = sum(n_units_est, na.rm = TRUE)) %>% 
+  tidyr::complete(group_type, year, compound_name_corrected) %>% 
+  dplyr::filter(!is.na(year))
+
+temporal_trends_enviro <- temporal_trends_by_compound %>% 
+  dplyr::filter(group_type == "environmental") %>% 
+  dplyr::select(-group_type, -year, -compound_name_corrected) %>% 
+  dplyr::rename(n_samples_env = n_samples)
+
+temporal_trends_test <- temporal_trends_by_compound %>% 
+  dplyr::filter(group_type == "test") %>% 
+  dplyr::select(-group_type) %>% 
+  dplyr::rename(n_samples_test = n_samples)
+
+temporal_trends_cbind <- cbind(temporal_trends_test, temporal_trends_enviro)
+```
+
+
+Looking at compound by compound sample occurrence over time across the environmental and EIPAAB databases. There's no obvious relationship. Perhaps there would be a time lag we could look for? 
+
+```{r}
+temporal_trends_cbind %>% 
+  dplyr::filter(year > 2008 & year < 2020) %>% 
+  ggplot(aes(x = n_samples_test, y = n_samples_env, color = compound_name_corrected)) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(~year, scales = "free") +
+  guides(color = "none") 
+```
+
 
 ### Modeling
 
@@ -1356,12 +1536,12 @@ ggsave(filename = paste0(output_fig_wd, "./figure-1a.pdf"),
        units = "mm")
 ```
 
-##### Table 2
+##### Table 1
 <br>
-**Table 2:** Compounds with the most environmental detections that are not present in EIPAAB.
+**Table 1:** Compounds with the most environmental detections that are not present in EIPAAB.
 
 ```{r}
-test_surfacewater %>% 
+table_1 <- test_surfacewater %>% 
   dplyr::filter(is.na(eipaab_n)) %>% 
   dplyr::arrange(desc(combind_samples)) %>% 
   dplyr::slice(1:15) %>% 
@@ -1377,7 +1557,14 @@ test_surfacewater %>%
     align = "center", 
     columns = everything()
   )
+
+table_1
 ```
+
+```{r}
+gtsave(table_1, filename = paste0(output_fig_wd, "./table-1.png"))
+```
+
 
 #### Percentage detections
 
@@ -1425,12 +1612,12 @@ fig_1b <- ggplot() +
 fig_1b
 ```
 
-##### Table 3
+##### Table 2
 
-**Table 3:** The compounds with the highest detection rate not found in the EIPAAB database
+**Table 2:** The compounds with the highest detection rate not found in the EIPAAB database
 
 ```{r}
-test_surfacewater %>%
+table_2 <- test_surfacewater %>%
   dplyr::filter(is.na(eipaab_n) & !is.na(combind_percent_detection)) %>%
   dplyr::arrange(desc(combind_percent_detection)) %>% 
   dplyr::slice(1:15) %>% 
@@ -1446,6 +1633,12 @@ test_surfacewater %>%
     align = "center", 
     columns = everything()
   )
+
+table_2
+```
+
+```{r}
+gtsave(table_2, filename = paste0(output_fig_wd, "./table-2.png"))
 ```
 
 ## Concentration 
@@ -1544,9 +1737,9 @@ conc_summary <- all_databases_with_sum %>%
 
 For the X compounds in the EIPAAB database that had associated data in UBA (representing 1,440 exposures), only X% and X% employed test concentrations lower then median and upper 95% credible interval of surface water concentrations, respectively (Table 4). Further, only X% and X% employed test concentrations lower then median and upper 95% credible interval of wastewater treatment plant effluent (Table 4). On average, concentrations used in behavioural ecotoxicology were X times higher then median surf water concentrations, and X times higher then those in effluent. <br>
 
-##### Table 4
+##### Table 3
 
-**Table 4:** The number of exposures in the EIPAAB database that used concentrations less then median and upper 95% credible interval of surface water and effluent concentrations
+**Table 3:** The number of exposures in the EIPAAB database that used concentrations less then median and upper 95% credible interval of surface water and effluent concentrations
 
 ```{r}
 surf <- conc_summary %>% 
@@ -1559,7 +1752,7 @@ effluent <- conc_summary %>%
   dplyr::rename(total_n = n_ef, less_med = less_med_ef, less_hci = less_hci_ef, fdiff_med = fdiff_med_ef, fdiff_hci = fdiff_hci_ef, percent_less_med = percent_less_med_ef, percent_less_hic = percent_less_hic_ef) %>% 
   dplyr::mutate(matrix = "Effluent")
 
-rbind(surf, effluent) %>% 
+table_3 <- rbind(surf, effluent) %>% 
   dplyr::select(matrix, everything()) %>% 
   dplyr::mutate(percent_less_med = round(percent_less_med, 2),
                 percent_less_hic = round(percent_less_hic, 2),
@@ -1575,7 +1768,15 @@ rbind(surf, effluent) %>%
     align = "center", 
     columns = everything()
   )
+
+table_3
 ```
+Saving the table 
+
+```{r}
+gtsave(table_3, filename = paste0(output_fig_wd, "./table-3.png"))
+```
+
 <br>
 Now we will make a summary for each compound
 
