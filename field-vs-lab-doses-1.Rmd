@@ -1,0 +1,1059 @@
+---
+title: "field-vs-lab-doses-r-1"
+author: "Jake Martin"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    code_download: true
+    code_folding: hide
+    depth: 4
+    number_sections: no
+    theme:  cosmo
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+  pdf_document:
+    toc: yes
+knit: |
+  (function(input, ...) {
+    rmarkdown::render(
+      input,
+      output_file = paste0(
+       'index_1.html'
+      ),
+      envir = globalenv()
+    )
+  })
+---
+
+
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+
+<!------------------------------->
+# 📕 README
+<!------------------------------->
+
+**PART 1 of 2** 
+This script "field-vs-lab-doses-r-1" is the first of two used for this project. This script tidies the input databases and combines them into a single data frame for analysis `martin-field-vs-lab-all-databases.csv`. The second script, "field-vs-lab-doses-r-2", deals with the analysis. If you download the associated data in the Open Science Frame work, you can run "field-vs-lab-doses-r-2" independently.   
+
+**ARTICLE** 
+This R script is associated with **Martin et al (2025)** "Aligning Behavioural Ecotoxicology Tests with Real-World Water Concentrations: Current Minimum Tested Levels Far Exceed Environmental Reality" DOI: <*to be added*> 
+
+**AUTHORS**  
+Jake M. Martin <sup>1,2,3</sup>*  
+Erin S. McCallum <sup>1</sup>   
+Jack A. Band <sup>2,4</sup> 
+
+**AFFILIATIONS**  
+(1) School of Life and Environmental Sciences, Deakin University, Geelong, Australia  
+(2) Department of Wildlife, Fish, and Environmental Studies, Swedish University of Agricultural Sciences, Umeå, Sweden  
+(3) School of Biological Sciences, Monash University, Melbourne, Australia  
+(4) Institute of Zoology, Zoological Society of London, London, United Kingdom  
+(*) Corresponding author  
+
+**SCRIPT**  
+This is an R markdown script written in R studio (2023.09.0+463 “Desert Sunflower” Release). The 'field-vs-lab-doses' Git repository hosts this script, and if downloaded (or pulled) it will reproduce all most all data tidy/filter sets (the raw NORMAN database was not uploaded because it's too large). I have tried to structure this code with Open, Reliable, and Transparent (ORT) coding practices in mind. Feel free to reach out if anything is unclear.
+
+The R script first cleans and filters each databases to make them comparable. In the gernalsit sense In terms of filtering, we target pharmaceutical compounds, surface waters/waste water effluent, and environmental/lab samples measured in units of mass per volume of water (e.g. ug/L).  
+
+[**GitHub**](https://github.com/JakeMartinResearch/field-vs-lab-doses)
+
+**DISCLAIMER**  
+I (Jake Martin) am dyslexic. I have made an effort to review the script for grammatical errors, but some will likely remain. I apologise. Please reach out via the contact details below if anything is unclear.  
+
+<!------------------------------->
+# 📧 Contact
+<!------------------------------->
+
+🐟 **Jake M. Martin**
+  
+📧 **Email:** [jake.martin@deakin.edu.au](mailto:jake.martin@deakin.edu.au)  
+  
+📧 **Alt Email:** [jake.martin.research@gmail.com](mailto:jake.martin.research@gmail.com) 
+  
+🌐 **Web:** [jakemartin.org](https://jakemartin.org/)  
+  
+🐙 **GitHub**: [JakeMartinResearch](https://github.com/JakeMartinResearch)  
+
+<!------------------------------->
+# 📑 Sharing/accessing and citing
+<!------------------------------->
+
+1. **Licenses/restrictions placed on the data:** CC-BY 4.0  
+
+2. **Link to the associated publication:**     
+🚧 ***To be added*** 🚧     
+
+3. **Recommended citation for this data:**      
+🚧 ***To be added*** 🚧     
+
+<!------------------------------->
+# ⚙️ Required packages settings 
+<!------------------------------->
+
+These are the R packages required for this script. We define our Knit settings, to make the output more user friendly, and to cache output for faster knitting.   
+
+```{r setup}
+#kniter seetting
+knitr::opts_chunk$set(
+message = FALSE,
+warning = FALSE, # no warnings
+cache = TRUE,# Cacheing to save time when kniting
+cache.lazy = FALSE,
+tidy = TRUE
+)
+
+# ---- Install pacman if it's not already installed ----
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+
+# ---- List of required packages ----
+pkgs <- c(
+  # ----- Data Visualisation -----
+  "gt",
+  
+  # ----- Tidy Data and Wrangling -----
+  "tidyverse", "janitor", "readxl", "broom.mixed", "data.table", "hms", "devtools",
+  "mclust", "stringr", "broom",
+  
+  # ----- Processing -----
+  "future"
+)
+
+# ---- Install and load all packages using pacman ----
+suppressPackageStartupMessages(
+  pacman::p_load(char = pkgs, install = TRUE)
+)
+```
+
+
+Here's a list of the package names  
+
+```{r}
+pkgs
+```
+
+
+<!------------------------------->
+# 🔧 Custom functions 
+<!------------------------------->
+
+Here are some custom function used within this script. 
+
+`tidy_string()` To tidy the names in UBA database.  
+
+```{r}
+tidy_string <- function(string) {
+  string %>%
+    stringr::str_remove_all("[-()]") %>%  # Remove unwanted characters
+    stringr::str_replace_all("\\s{2,}", " ") %>%  # Replace double spaces with a single space
+    stringr::str_replace_all("\\s", "_") %>%  # Replace spaces with underscores
+    stringr::str_replace_all("[/]", "_") %>% 
+    stringr::str_replace_all("[µ]", "u") %>% 
+    tolower()
+}
+```
+
+`make_na()` Takes a sting and replaces with `NA` based on specification in the UBA database.      
+
+```{r}
+make_na <- function(string) {
+    dplyr::case_when(
+      string == -9999 ~ NA,
+      string == "[-]" ~ NA,
+      string == "-" ~ NA,
+      string == "" ~ NA,
+      TRUE ~ string
+      )
+}
+```
+
+`sentence_case()` Changes a string into sentence case.  
+
+```{r}
+sentence_case <- function(text) {
+  text <- tolower(text) # Convert the entire text to lowercase
+  text <- sub("^(\\s*\\w)", "\\U\\1", text, perl = TRUE) # Capitalise the first letter
+  return(text)
+}
+```
+
+
+`process_atc_data()` Tidy the ATC classification strings and group multiple classifications at each ATC level. 
+
+```{r}
+# Function to split and structure ATC codes
+split_atc_classification <- function(atc_classification) {
+  if (is.na(atc_classification) || atc_classification == "") return(data.frame())  # Handle NAs
+  
+  # Split and clean levels
+  levels <- str_split(atc_classification, ";")[[1]] %>% trimws()
+  
+  # Convert to a wide format with dynamic column names
+  levels_df <- as.data.frame(t(levels))
+  colnames(levels_df) <- paste0("atc_level_", seq_along(levels))
+
+  return(levels_df)
+}
+
+# Function to combine ATC levels based on hierarchy
+combine_levels <- function(row_values, pattern) {
+  matching_cells <- unlist(row_values) %>% as.character() %>% .[str_detect(., pattern)]
+  unique_sorted <- unique(matching_cells) %>% sort()
+  combined <- paste(na.omit(unique_sorted), collapse = ";")
+  
+  return(ifelse(combined == "", NA, combined))
+}
+
+# Process the ATC column and merge results with original data
+process_atc_data <- function(df) {
+  processed_df <- df %>%
+    mutate(atc_classification = tolower(atc_classification)) %>%
+    rowwise() %>%
+    mutate(split = list(split_atc_classification(atc_classification))) %>%
+    unnest_wider(split, names_repair = "unique") %>%  # Ensure unique column names
+    ungroup()
+  
+  # Find actual number of unique ATC levels per row
+  max_levels <- max(str_count(processed_df$atc_classification, ";"), na.rm = TRUE) + 1
+
+  # Dynamically standardize column names while ensuring uniqueness
+  atc_cols <- grep("^atc_level_", colnames(processed_df), value = TRUE)
+  if (length(atc_cols) > max_levels) {
+    atc_cols <- atc_cols[1:max_levels]  # Trim to match expected levels
+  }
+  colnames(processed_df)[which(colnames(processed_df) %in% atc_cols)] <- paste0("atc_level_", seq_len(length(atc_cols)))
+
+  # Select ATC level columns dynamically
+  atc_columns <- processed_df %>% select(starts_with("atc_level_"))
+
+  # Apply row-wise processing using `map_chr()` instead of `apply()`
+  processed_df <- processed_df %>%
+    mutate(
+      level_5_combined = map_chr(seq_len(nrow(atc_columns)), ~ combine_levels(atc_columns[.x, ], "^[a-z]_")),
+      level_4_combined = map_chr(seq_len(nrow(atc_columns)), ~ combine_levels(atc_columns[.x, ], "^[a-z]\\d{2}_")),
+      level_3_combined = map_chr(seq_len(nrow(atc_columns)), ~ combine_levels(atc_columns[.x, ], "^[a-z]\\d{2}[a-z]_")),
+      level_2_combined = map_chr(seq_len(nrow(atc_columns)), ~ combine_levels(atc_columns[.x, ], "^[a-z]\\d{2}[a-z]{2}_"))
+    ) %>%
+    select(level_5_combined, level_4_combined, level_3_combined, level_2_combined)  # Keep only needed levels
+
+  # Merge the processed ATC data back into the original dataframe
+  df <- df %>%
+    bind_cols(processed_df)
+
+  return(df)
+}
+```
+
+<!------------------------------->
+# 📂 Directories 
+<!------------------------------->
+
+Here we define the directories for the project. We also make the output directories if they don't already exist. 
+
+## Input
+
+These are the input directors for the databases used in this project. 
+
+**📥 data_wd**: Directory for the input data.  
+
+```{r}
+wd <- getwd() # getwd tells us what the current wd is, we are using this to drop it in a variable called wd
+data_wd <- paste0(wd, "./data") # creates a variable with the name of the wd we want to use
+```
+
+<!------------------------------->
+# 💿 Databases 
+<!------------------------------->
+
+In this section of the script we will import the different databases and tidy them.  
+
+## 1️⃣ EIPAAB
+
+Import the **💿 EIPAAB database**, there are 901 articles and 1739 rows of data in total.  
+
+```{r}
+EIPAAB <- read.csv(paste0(data_wd, "./EIPAAB-database.csv"))
+
+articles <- EIPAAB %>% 
+  dplyr::distinct(article_id) %>% 
+  nrow(.)
+
+data_points <- EIPAAB %>% 
+  nrow(.)
+
+print(paste0("n articles = ", articles, "; n data rows = ", data_points))
+```
+
+### Filtering
+
+We are filter the EIPAAB database based on study motivation and concentration units.  
+
+- ❗**Motivation**❗ *only* ➡️ **Environmental**    
+
+- ❗**Units**❗ *only* concentrations reported in ➡️ **mass per volume of water (e.g. ug/L)**
+
+We now have **463 articles and 767 rows** of data (we removed 438 articles and 972 rows of data).  
+
+```{r}
+EIPAAB <- EIPAAB %>% 
+  dplyr::mutate(compound_min_dose_unit_std = tidy_string(compound_min_dose_unit_std),
+                compound_max_dose_unit_std = tidy_string(compound_max_dose_unit_std)) %>% 
+  dplyr::filter(study_motivation == "Environmental", 
+                compound_min_dose_unit_std == "ug_l", compound_max_dose_unit_std == "ug_l") %>% 
+  dplyr::mutate(compound_name = tolower(compound_name),  
+                compound_pubchem_name = tolower(compound_pubchem_name))
+
+articles <- EIPAAB %>% 
+  dplyr::distinct(article_id) %>% 
+  nrow(.)
+
+data_points <- EIPAAB %>% 
+  nrow(.)
+
+print(paste0("Filtered: n articles = ", articles, "; n data rows = ", data_points))
+```
+
+There are **184 compounds** in this filtered dataset.  
+
+```{r}
+eipaab_cas_list <- EIPAAB %>% 
+  dplyr::distinct(compound_cas) %>% 
+  pull(compound_cas)
+
+eipaab_name_list <- EIPAAB %>% 
+  dplyr::distinct(compound_name) %>% 
+  pull(compound_name)
+
+eipaab_pubchem_name_list <- EIPAAB %>% 
+  dplyr::distinct(compound_pubchem_name) %>% 
+  pull(compound_pubchem_name)
+
+eipaab_cas_n <- length(eipaab_cas_list)
+eipaab_name_n <- length(eipaab_name_list)
+eipaab_pubchem_name_n <- length(eipaab_pubchem_name_list)
+
+print(paste0("n CAS numbers = ", eipaab_cas_n, "; n compound names = ", eipaab_name_n, "; n PubChem compound names = ", eipaab_pubchem_name_n))
+```
+
+### EIPAAB tidy
+
+Here we will make a new EIPAAB data frame, eipaab_tidy, that we can combind with the other databases more easily. I have added a few new columns so that we can combined it with the environmental occurrence data matrix_group, n_units and source. I have also **filtered** to use only the minimum tested concentration. We have formatted the data so both could be included.
+
+```{r}
+eipaab_tidy <- EIPAAB %>% 
+  dplyr::select(unique_row_id, compound_cas, compound_name, compound_pubchem_name, compound_min_dose_std, compound_max_dose_std, year, title) %>% 
+    pivot_longer(
+    cols = c(compound_min_dose_std, compound_max_dose_std),
+    names_to = "concentration_type",
+    values_to = "value"
+  ) %>%
+  mutate(concentration_type = case_when(
+    concentration_type == "compound_min_dose_std" ~ "min",
+    concentration_type == "compound_max_dose_std" ~ "max",
+    TRUE ~ NA
+  ),
+  matrix = "test",
+  matrix_group = "test",
+  n_units = 1,
+  n_units_est = 1,
+  source = "eipaab") %>% 
+  dplyr::filter(concentration_type == "min") %>% 
+  dplyr::rename(reference = title) %>% 
+  dplyr::select(source, compound_cas, compound_name, concentration_type, value, matrix_group, matrix, n_units, n_units_est, compound_pubchem_name, year, reference, unique_row_id)
+
+remove(EIPAAB) # To remove from environment 
+```
+
+
+## 2️⃣ UBA
+
+Import the UBA database, tidy the column names and data. This is the whole UBA database.
+
+```{r}
+column_fix_na <- c("sampling_period_start", "sampling_period_end", "number_of_samples_analysed", "unit_original", "unit_standard", "unit_lo_d", "unit_lo_d_standardized", "lo_d_standardized", "lo_d_limit_of_detection", "sampling_province")
+
+column_fix_chr <- c("matrix", "unit_original", "unit_standard", "unit_lo_d", "unit_lo_d_standardized", "statistics")
+
+UBA <- read_excel(paste0(data_wd, "./pharms-uba_v3_2021_0.xlsx"), skip = 2) %>% 
+  janitor::clean_names() %>%
+  dplyr::mutate(name_of_analyte = tolower(name_of_analyte),
+                across(all_of(column_fix_na), make_na),
+                across(all_of(column_fix_chr), tidy_string),
+                cas_number = str_replace_all(cas_number, "–", "-"))
+```
+
+
+### Filtering
+
+I am filtering for only measures in standard units of 'ug/L' because we are only comparing water-borne concentrations (i.e. in mass per volume of water). I am also only selecting matrix of interest, and re-allocating the different matrix into broader categories. The matrix of interest that we have selected for this investigation are:  
+
+
+- ❗**Matrix**❗ *only* the following sample matrix ➡️ "surface_water_river_stream", "surface_water_unspecific", "surface_water_lake", "surface_water_sea_or_ocean", "surface_water_aquaculture", "surface_water_pond", "wwtp_effluent_treated", "wwtp_secondary_effluent", "wwtp_primary_effluent", "wwtp_desinfection_effluent"  
+
+
+
+- ❗**Units**❗ *only* standard units ➡️ 'ug/L', because we are only comparing water-borne concentrations (i.e. in mass per volume of water)
+
+
+```{r}
+matrix_surfacewater <- c("surface_water_river_stream", "surface_water_unspecific", "surface_water_lake", "surface_water_sea_or_ocean", "surface_water_aquaculture", "surface_water_pond")
+
+matrix_wwtp_effluent <- c("wwtp_effluent_treated", "wwtp_secondary_effluent", "wwtp_primary_effluent", "wwtp_desinfection_effluent")
+
+matrix_of_intrest <- c(matrix_surfacewater, matrix_wwtp_effluent)
+
+
+UBA <-  UBA %>% 
+  dplyr::filter(unit_standard == "ug_l") %>% 
+  dplyr::filter(matrix %in% matrix_of_intrest) %>% 
+  dplyr::mutate(matrix_group = case_when(
+    matrix %in% matrix_surfacewater ~ "surfacewater",
+    matrix %in% matrix_wwtp_effluent ~ "effluent",
+    TRUE ~ "ERROR"
+  ))
+```
+
+
+The UBA database has measured values as single values or summary statics from a given study. We will highlight this by allocating the different statistics into to measures of central tendency (**central**: "average", "mean", "median", "timeweightedaverage_concentration") vs single values (**single**: "single_value", "single_value_of_a_composite_sample"). There are also summary values such as minimum and maximum, which we will remove from the database.
+
+```{r}
+statistics_central_tendency <- c("average", "mean", "median", "timeweightedaverage_concentration")
+statistics_single <- c("single_value", "single_value_of_a_composite_sample")
+
+statistics_select <- c(statistics_single, statistics_central_tendency)
+
+UBA <- UBA %>% 
+  dplyr::mutate(statistics_group = case_when(
+    statistics %in% statistics_central_tendency ~ "central",
+    statistics %in% statistics_single ~ "single",
+    TRUE ~ "other"
+  )) %>% 
+  dplyr::filter(statistics_group != "other")
+```
+
+There are **888** distinct CAS numbers in the UBA database and **938** distinct compound names and 122,929 data points for the matrix we are potentially interested in.  
+
+```{r}
+uba_cas_n <- UBA %>% 
+  dplyr::distinct(cas_number) %>% 
+  nrow(.)
+
+uba_name_n <- UBA %>% 
+  dplyr::distinct(name_of_analyte) %>% 
+  nrow(.)
+
+data_points <- UBA %>% nrow()
+
+print(paste0("n CAS numbers = ", uba_cas_n, "; n compound names = ", uba_name_n, "; n data points ", data_points))
+```
+
+### UBA tidy
+
+Here we are making a data frame we can combined with the other databases 
+
+```{r}
+uba_tidy <- UBA %>% 
+  dplyr::select(id, 
+                name_of_analyte, 
+                cas_number, 
+                matrix, 
+                mec_standardized, 
+                literature_citation, 
+                matrix_group, 
+                statistics_group, 
+                number_of_samples_analysed,
+                sampling_period_end,
+                ) %>% 
+  dplyr::rename(compound_name = name_of_analyte,
+                compound_cas = cas_number,
+                unique_row_id = id, 
+                concentration_type = statistics_group, 
+                value = mec_standardized, 
+                n_units = number_of_samples_analysed,
+                year = sampling_period_end,
+                reference = literature_citation) %>% 
+  dplyr::mutate(n_units_est = if_else(concentration_type == "single", 1, n_units),
+                n_units_est = if_else(is.na(n_units_est), 2, n_units_est),
+                compound_pubchem_name = NA,
+                compound_pubchem_name = as.character(compound_pubchem_name),
+                unique_row_id = as.character(unique_row_id),
+                source = "uba") %>% 
+  dplyr::select(source, compound_cas, compound_name, concentration_type, value, matrix_group, matrix, n_units, n_units_est, compound_pubchem_name, year, reference, unique_row_id)
+
+remove(UBA) # To remove from environment 
+```
+
+
+## 3️⃣ Wilkson
+
+Import the complete **Wilkson dataset S4** and tidy. We have removed extra headings, and filled down compound name.
+
+```{r}
+wilkson <- read_excel(paste0(data_wd, "./pnas.2113947119.sd04.xlsx"), skip = 5) %>% 
+  janitor::clean_names() %>% 
+  dplyr::slice(6:1103) %>% 
+  dplyr::select(-x140) %>% 
+  dplyr::rename(compound_name = x1, survey_n = sampling_campaign) %>% 
+  dplyr::mutate(compound_name = tolower(compound_name)) %>% 
+  tidyr::fill(compound_name)
+```
+
+Changing the data to long formate. We remove empty rows, change the concentration results to numeric, replace ND with 0 and remove "e" for estimated values. Lastly, we change the value to ug/L by dividing by 1000 (it's given in ng/L).
+
+```{r}
+wilkson_tidy <- wilkson %>%
+  tidyr::pivot_longer(
+    cols = -c(compound_name, survey_n), # Columns to keep fixed
+    names_to = "site",            # Column to store variable names
+    values_to = "value"                # Column to store values
+  ) %>%
+  dplyr::mutate(
+    sample_id = paste(site, survey_n, sep = "_"),
+    value = str_remove_all(value, "e"),
+    value = case_when(
+      is.na(value) ~ NA,
+      value == "ND" ~ "0",
+      TRUE ~ value
+    ),
+    value = as.numeric(value)/1000
+  ) %>% 
+  dplyr::filter(!is.na(value)) %>% 
+  dplyr::mutate(unique_row_id = paste0(sample_id, "_", compound_name),
+                concentration_type = "single",
+                matrix = "river",
+                matrix_group = "surfacewater",
+                year = 2019, # most samples were collected in 2019 for the project 
+                n_units = 1,
+                source = "wilkson",
+                n_units_est = 1,
+                reference = "Wilkson et al 2022",
+                compound_pubchem_name = NA,
+                compound_pubchem_name = as.character(compound_pubchem_name),
+                compound_cas = NA) %>%
+  dplyr::select(-sample_id, -survey_n, -site)  %>% 
+  dplyr::select(source, compound_cas, compound_name, concentration_type, value, matrix_group, matrix, n_units, n_units_est, compound_pubchem_name, year, reference, unique_row_id)
+
+remove(wilkson) # To remove from environment 
+```
+
+The Wilkson database has **61 pharmaceuticals** and 64,132 samples.  
+
+```{r}
+compounds <- wilkson_tidy %>% 
+  dplyr::distinct(compound_name) %>% 
+  nrow(.)
+
+data_points <- wilkson_tidy %>%  nrow(.)
+
+print(paste0("compound names = ", compounds, "; n data points ", data_points))
+```
+
+
+### Filtering
+
+We *do not need to filter* the Wilkson database, all analytes are pharmaceuticals, values are in mass per volume of water, and all samples are from surface waters.  
+
+## 4️⃣ NORMAN
+
+This part of the code relates to the NORMAN Chemical Occurrence Database (NORMAN EMPODAT Database) (https://www.norman-network.com/nds/empodat/chemicalSearch.php?s=new). 
+
+The complete NORMAN EMPODAT database was downloaded for surface water samples (8 categories total; listed below) as well as waste water samples (4 categories total; listed below). This includes all compounds. The only restrictions applied to the original search was for 'matrix'.
+
+- ❗**Matrix**❗: ***included only*** *surface water samples* (8 categories total) ➡️ "Surface water - River water", "Surface water - Lake water", "Surface water - Transitional water", "Surface water - Coastal water", "Surface water - Territorial (marine) water", "Surface water - Reservoirs", "Surface water - Other", and "Surface water - Sea water". *Waste water samples* (4 categories total) ➡️ specifically, "Waste water - Urban", "Waste water - Industrial", "Waste water - Municipal", "Waste water - Other".    
+
+We will import this data slightly differently because its a very large file (25 GB). We will import  only columns of interest. We will also apply some filters at this stage for year and organisation. 
+
+- ❗**Years**❗: ***included only*** data from 2014 to 2022, this was to avoid overlap between the UBA database and the NORMAN database, as the UBA database included data from the NORMAN data base prior to 2014. 
+
+- ❗**Organisation**❗: ***did not include*** data from "Federal Environment Agency (UBA-A), AT", to avoid overlap with the UBA.   
+
+**📝 NOTE**: I have hashed out the code where I import the NORMAN database because its very large. I will save and load the filtered and tidy database below to save re-processing.    
+
+First loading surface water data      
+
+```{r}
+# setwd(data_wd)
+# 
+# # Define required columns
+# required_cols <- c("Sample matrix", "Individual compound", "CAS No.", "NORMAN SusDat ID",
+#                    "CONCENTRATION DATA", "Concentration", "Value", "Unit", "V34",
+#                    "Organisation", "References / literature 1")
+# 
+# # Load only necessary columns, skipping the first row
+# norman_surface <- fread("Surface_water_2024-12-19-214810.csv",
+#                         skip = 1,
+#                         select = required_cols)
+# 
+# setDT(norman_surface)  # Convert to data.table for fast processing
+# norman_surface <- clean_names(norman_surface)  # Standardise column names
+# 
+# # Rename columns (in-place)
+# setnames(norman_surface,
+#          old = c("v34", "individual_compound", "cas_no", "concentration_data", "references_literature_1"),
+#          new = c("year", "compound_name", "compound_cas", "concentration_type", "reference"))
+# 
+# # Convert `year` column to numeric (if not already)
+# norman_surface[, year := as.integer(year)]
+# 
+# # **Fast filtering: Keep only years between 2014 and 2022 & remove specific organisation**
+# norman_surface <- norman_surface[year >= 2014 & year <= 2022 & organisation != "Federal Environment Agency (UBA-A), AT"]
+# 
+# # **In-place modifications for maximum efficiency**
+# set(norman_surface, j = "compound_name", value = tolower(norman_surface$compound_name))
+# set(norman_surface, j = "compound_cas", value = str_remove_all(norman_surface$compound_cas, "CAS_RN: "))
+# set(norman_surface, j = "compound_cas", value = str_replace_all(norman_surface$compound_cas, "–", "-"))
+# set(norman_surface, j = "matrix_group", value = "surfacewater")
+# set(norman_surface, j = "source", value = "norman")
+# 
+# # **Fast replacement of concentration_type using data.table's `fifelse()`**
+# norman_surface[, concentration_type := fifelse(concentration_type == "Individual results", "single",
+#                                     fifelse(concentration_type == "Aggregate data", "central",
+#                                             concentration_type))]
+```
+
+Now import the waste water data     
+
+```{r}
+# setwd(data_wd)
+# 
+# # Define required columns
+# required_cols <- c("Sample matrix", "Individual compound", "CAS No.", "NORMAN SusDat ID",
+#                    "CONCENTRATION DATA", "Concentration", "Value", "Unit", "V34",
+#                    "Organisation", "References / literature 1")
+# 
+# # Load only necessary columns, skipping the first row
+# norman_effluent <- fread("Waste_water_2025-01-09-222202.csv",
+#                         skip = 1,
+#                         select = required_cols)
+# 
+# setDT(norman_effluent)  # Convert to data.table for fast processing
+# norman_effluent <- clean_names(norman_effluent)  # Standardise column names
+# 
+# # Rename columns (in-place)
+# setnames(norman_effluent, 
+#          old = c("v34", "individual_compound", "cas_no", "concentration_data", "references_literature_1"), 
+#          new = c("year", "compound_name", "compound_cas", "concentration_type", "reference"))
+# 
+# # Convert `year` column to numeric (if not already)
+# norman_effluent[, year := as.integer(year)]
+# 
+# # **Fast filtering: Keep only years between 2014 and 2022 & remove specific organisation**
+# norman_effluent <- norman_effluent[year >= 2014 & year <= 2022 & organisation != "Federal Environment Agency (UBA-A), AT"]
+# 
+# # **In-place modifications for maximum efficiency**
+# set(norman_effluent, j = "compound_name", value = tolower(norman_effluent$compound_name))
+# set(norman_effluent, j = "compound_cas", value = str_remove_all(norman_effluent$compound_cas, "CAS_RN: "))
+# set(norman_effluent, j = "compound_cas", value = str_replace_all(norman_effluent$compound_cas, "–", "-"))
+# set(norman_effluent, j = "matrix_group", value = "effluent")
+# set(norman_effluent, j = "source", value = "norman")
+# 
+# # **Fast replacement of concentration_type using data.table's `fifelse()`**
+# norman_effluent[, concentration_type := fifelse(concentration_type == "Individual results", "single",
+#                                     fifelse(concentration_type == "Aggregate data", "central",
+#                                             concentration_type))]
+```
+
+Combined the surface water and effluent/waste water data    
+
+```{r}
+# setcolorder(norman_effluent, names(norman_surface))
+# norman <- rbind(norman_surface, norman_effluent)
+```
+
+There are 3775 CAS numbers (3870 compound names), years range from 2014 to 2020, there are 44,870,200 data points.  
+
+```{r}
+# norman %>%
+#   dplyr::reframe(n_cas = length(unique(compound_cas)),
+#                  n_compound_names = length(unique(compound_name)),
+#                  year_min = min(year),
+#                  year_max = max(year),
+#                  n_data = length(year)) %>%
+#   gt()
+```
+
+Now we will filter this database for pharmaceutical compounds using the Pharmaceuticals (PHARMA) NORMAN Substance Database (NORMAN SusDat). Below we import the PHARMA NORMAN SusDat dataframe and then pull all CAS numbers associated with all compounds. Specifically, "casrn", "cas_rn_pub_chem", "cas_rn_cactus", "cas_rn_chem_spider". We then create a single list of all possible CAS numbers which will be used to filter the NORMAN surface water and waste water data.   
+
+- ❗**Compounds**❗" ***included only*** Chemical Abstracts Service (CAS) Registry Numbers (CRSRN) in the Pharmaceuticals (PHARMA) NORMAN Substance Database (NORMAN SusDat). In total, there are **9626** compounds listed in the PHARMA NORMAN SusDat, which represent **13,324** unique CAS numbers.    
+
+
+```{r}
+# setwd(data_wd)
+# 
+# # Use fread() for faster CSV reading and select only relevant columns
+# pharma_susdat <- fread("susdat_2025-02-06-234326.csv", 
+#                         select = c("casrn", "CAS_RN_PubChem", "CAS_RN_Cactus", "CAS_RN_ChemSpider")) %>% 
+#   clean_names()  # Clean column names
+# 
+# # Define CAS number columns
+# cas_cols <- c("casrn", "cas_rn_pub_chem", "cas_rn_cactus", "cas_rn_chem_spider")
+# 
+# # Extract, split by semicolon, flatten, remove duplicates, and filter out NA in one step
+# pharma_susdat_cas_list <- unique(
+#   trimws(na.omit(unlist(tstrsplit(unlist(pharma_susdat[, ..cas_cols]), ";", fixed = TRUE))))
+# )
+```
+
+There are **9626** compounds listed in the PHARMA NORMAN SusDat, which represent **13,324** unique CAS numbers
+
+```{r}
+# nrow(pharma_susdat)
+# length(pharma_susdat_cas_list)
+```
+
+Filter the the surface water data set for only CAS in the PHARMA NORMAN SusDat.   
+
+I will save this as **💿 norman_pharma.csv** to upload for reproducibility purposes.  
+
+```{r}
+# setDT(norman)
+# 
+# # Convert CAS list to data.table for efficient filtering
+# pharma_cas_dt <- data.table(compound_cas = pharma_susdat_cas_list)
+# 
+# # Fast filtering: Match CAS and remove rows where compound_name is NA
+# norman_pharma <- norman[pharma_cas_dt, on = "compound_cas", nomatch = 0][!is.na(compound_name)]
+#
+# setwd(data_wd)
+# fwrite(norman_pharma, "norman_pharma.csv")
+```
+
+Read in the **💿 norman_pharma.csv**
+
+```{r}
+norman_pharma <- fread(paste0(data_wd, "./norman_pharma.csv"))
+```
+
+
+There's 1380 unique CAS numbers (1380 compound names), the earliest record is 2014 and latest is 2020. In total there are **9,382,388** rows of data (i.e. greater than 9,394,332 samples).   
+
+```{r}
+norman_pharma_summary <- norman_pharma %>%
+  reframe(n_rows = nrow(.),
+          n_compound_names = length(unique(compound_name)),
+          n_compound_cas = length(unique(compound_cas)),
+          min_year = min(year, na.rm = TRUE),
+          max_year = max(year, na.rm = TRUE)
+            )
+norman_pharma_summary %>%
+  gt()
+```
+
+### NORMAN tidy
+
+Making a database that can be combined with the others.  
+
+```{r}
+norman_tidy <- norman_pharma %>%
+    dplyr::mutate(n_units = NA,
+                n_units_est = if_else(concentration_type == "central", 2, 1),
+                unique_row_id = paste0(norman_sus_dat_id, "_", compound_name),
+                compound_pubchem_name = NA,
+                compound_pubchem_name = as.character(compound_pubchem_name),
+                year = as.numeric(year),
+                matrix = case_when(
+                  sample_matrix == "Surface water - River water" ~ "surface_water_river_stream",
+                  sample_matrix == "Surface water - Lake water" ~ "surface_water_lake",
+                  sample_matrix == "Surface water - Sea water" ~ "surface_water_sea_or_ocean",
+                  sample_matrix == "Surface water - Territorial (marine) water" ~ "surface_water_sea_or_ocean",
+                  sample_matrix == "Surface water - Transitional water" ~ "surface_water_transitional_water",
+                  sample_matrix == "Surface water - Coastal water" ~ "surface_water_sea_or_ocean",
+                  sample_matrix == "Surface water - Other" ~ "surface_water_unspecific",
+                  sample_matrix == "Surface water - Reservoirs" ~ "surface_water_reservoirs",
+                  sample_matrix == "Surface water - Reservoirs" ~ "surface_water_unspecific",
+                  sample_matrix == "Waste water - Industrial" ~ "wwtp_industrial_effluent",
+                  sample_matrix == "Waste water - Municipal" ~ "wwtp_municipal_effluent",
+                  sample_matrix == "Waste water - Other" ~ "wwtp_other_effluent",
+                  sample_matrix == "Waste water - Urban" ~ "wwtp_urban_effluent",
+                  TRUE ~ "ERROR"
+                )) %>%
+  dplyr::select(source, compound_cas, compound_name, concentration_type, value, matrix_group, matrix, n_units, n_units_est, compound_pubchem_name, year, reference, unique_row_id)
+
+remove(norman_pharma)
+```
+
+## 5️⃣ ALL
+
+Here we combined all databases.  
+
+```{r}
+all_databases <- bind_rows(eipaab_tidy, uba_tidy, wilkson_tidy, norman_tidy)
+
+rm(list = c("eipaab_tidy", "uba_tidy", "wilkson_tidy", "norman_tidy"))
+```
+
+## Compound identifiers 
+
+In this section we will fix compound synonyms, to make sure names and CAS are consistent across all databases.  
+
+First we will identify CAS numbers with multiple names. 
+
+```{r}
+cas_with_two_names_list <- all_databases %>% 
+  dplyr::filter(!is.na(compound_cas)) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::reframe(names = length(unique(compound_name))) %>% 
+  dplyr::filter(names > 1) %>% 
+  dplyr::pull(compound_cas)
+
+paste0("There are ", length(cas_with_two_names_list), " CAS with more then one compound name")
+```
+
+We will first reassign them based on the CAS in EIPAAB. Of the 86 CAS with two names, 21 are present in EIPAAB. We will use these to correct the name.  
+
+```{r}
+eipaab_name_adjust <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::filter(compound_cas %in% cas_with_two_names_list) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(compound_cas, compound_name) %>% 
+  dplyr::rename(compound_name_corrected = compound_name)
+
+all_databases <- all_databases %>% 
+  dplyr::left_join(., eipaab_name_adjust, by = "compound_cas") %>% 
+  dplyr::mutate(compound_name_corrected = if_else(is.na(compound_name_corrected), compound_name, compound_name_corrected))
+```
+
+That fixed 21, but there are still 65 CAS with multiple compound names
+
+```{r}
+cas_with_two_names_list <- all_databases %>% 
+  dplyr::filter(!is.na(compound_cas)) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::reframe(names = length(unique(compound_name_corrected))) %>% 
+  dplyr::filter(names > 1) %>% 
+  dplyr::pull(compound_cas)
+
+paste0("There are ", length(cas_with_two_names_list), " CAS with more then one compound name")
+```
+
+Let's select only one of the compound names associated with that CAS number. We will use the most common of the duplicate names.   
+
+```{r}
+cas_with_two_names <- all_databases %>% 
+  dplyr::filter(compound_cas %in% cas_with_two_names_list) %>% 
+  dplyr::group_by(compound_cas, compound_name) %>% 
+  dplyr::reframe(n = length(compound_cas)) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(compound_cas, compound_name) %>% 
+  dplyr::rename(compound_name_select = compound_name)
+
+all_databases <- all_databases %>% 
+  dplyr::left_join(., cas_with_two_names, by = "compound_cas") %>% 
+  dplyr::mutate(compound_name_corrected = if_else(is.na(compound_name_select), compound_name_corrected, compound_name_select)) %>% 
+  dplyr::select(-compound_name_select)
+```
+
+
+This fixed the CAS duplicate issue.   
+
+```{r}
+cas_with_two_names_list <- all_databases %>% 
+  dplyr::filter(!is.na(compound_cas)) %>% 
+  dplyr::group_by(compound_cas) %>% 
+  dplyr::reframe(names = length(unique(compound_name_corrected))) %>% 
+  dplyr::filter(names > 1) %>% 
+  dplyr::pull(compound_cas)
+
+paste0("There are ", length(cas_with_two_names_list), " CAS with more then one compound name")
+```
+
+
+Now let's add missing CAS and match CAS to EIPAAB.   
+
+
+There's 29 compounds in UBA with missing CAS, and 61 in Wilkinson.   
+
+```{r}
+all_databases %>% 
+  dplyr::filter(is.na(compound_cas)) %>% 
+  dplyr::group_by(compound_name_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::reframe(n = length(source))
+```
+
+We will use the compound names from EIPAAB to add missing CAS numbers.  
+
+```{r}
+eipaab_idenifiers <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::select(compound_cas, compound_name_corrected) %>% 
+  dplyr::group_by(compound_cas, compound_name_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::rename(compound_cas_corrected = compound_cas)
+```
+
+This part of the script can take some time to run 🕒...
+
+```{r}
+setDT(all_databases)
+setDT(eipaab_idenifiers)
+all_databases <- eipaab_idenifiers[all_databases, on = "compound_name_corrected"]
+```
+
+Same with this...    
+
+```{r}
+all_databases[, compound_cas_corrected := fifelse(
+  is.na(compound_cas_corrected), compound_cas, compound_cas_corrected
+)]
+# saveRDS(all_databases, "all_databases_processed.rds")
+```
+
+Reloading, this process was not working within markdown   
+
+```{r}
+# all_databases <- readRDS("all_databases_processed.rds")
+```
+
+Still some with missing CAS (UBA = 28, Wilkson = 24).    
+
+```{r}
+all_databases %>% 
+  dplyr::filter(is.na(compound_cas_corrected)) %>% 
+  dplyr::group_by(compound_name_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::reframe(n = length(source))
+```
+ 
+Adding CAS with Pubchem name    
+
+```{r}
+eipaab_idenifiers_2 <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::select(compound_cas, compound_pubchem_name) %>% 
+  dplyr::group_by(compound_cas, compound_pubchem_name) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::rename(compound_cas_corrected_2 = compound_cas,
+                compound_name_corrected = compound_pubchem_name)
+
+all_databases <- all_databases %>% 
+  dplyr::left_join(., eipaab_idenifiers_2, by = "compound_name_corrected") %>% 
+  dplyr::mutate(compound_cas_corrected = if_else(is.na(compound_cas_corrected_2), compound_cas_corrected, compound_cas_corrected_2)) %>% 
+  dplyr::select(-compound_cas_corrected_2)
+```
+
+There's still 47 compounds in database that don't have a CAS, 28 from UBA and 20 from Wilkson.   
+
+```{r}
+all_databases %>% 
+  dplyr::filter(is.na(compound_cas_corrected)) %>% 
+  dplyr::group_by(compound_name_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::reframe(n = length(source))
+```
+
+Here I have mainly added CAS from PubChem where available for these compound names.   
+
+```{r}
+all_databases <- all_databases %>% 
+  dplyr::mutate(compound_cas_corrected = case_when(
+    compound_name_corrected == "alpha-apo-oxytetracycline" ~ "2869-27-4",
+    compound_name_corrected == "artemisinin" ~ "63968-64-9",
+    compound_name_corrected == "cloxacillin" ~ "61-72-3",
+    compound_name_corrected == "cotinine" ~ "486-56-6",
+    compound_name_corrected == "erythrohydrobupropion" ~ "99102-04-2",
+    compound_name_corrected == "fluconazole" ~ "86386-73-4",
+    compound_name_corrected == "hydrocodone" ~ "125-29-1",
+    compound_name_corrected == "itraconazole" ~ "84625-61-6",
+    compound_name_corrected == "ketotifen" ~ "34580-13-7",
+    compound_name_corrected == "loratadine" ~ "79794-75-5",
+    compound_name_corrected == "miconazole" ~ "22916-47-8",
+    compound_name_corrected == "nevirapine" ~ "129618-40-2",
+    compound_name_corrected == "norethisterone" ~ "68-22-4",
+    compound_name_corrected == "norfluoxetine" ~ "83891-03-6",
+    compound_name_corrected == "oseltamivir" ~ "196618-13-0",
+    compound_name_corrected == "pregabalin" ~ "148553-50-8",
+    compound_name_corrected == "raloxifene" ~ "84449-90-1",
+    compound_name_corrected == "salbutamol" ~ "18559-94-9",
+    compound_name_corrected == "sitagliptin" ~ "486460-32-6",
+    compound_name_corrected == "thiabendazole" ~ "148-79-8",
+    compound_name_corrected == "triamterene" ~ "396-01-0",
+    TRUE ~ compound_cas_corrected
+  ))
+```
+
+
+## Compound classes
+
+We will allocate these compounds to a therapeutic class for these may be useful for analysis downstream. There are 1756 compound_cas in the combined data (i.e. have been sampled in environmental survey or tested in a behavioural ecotoxicology setting).    
+
+We will use the Anatomical Therapeutic Chemical (ATC) Classification for this.  
+
+Making a list of all compounds we want ATC classification for and writing it to a CSV file **all_compounds.csv**.   
+
+```{r}
+setwd(data_wd)
+all_compounds <- all_databases %>% 
+  dplyr::select(compound_name_corrected, compound_cas_corrected) %>% 
+  dplyr::group_by(compound_cas_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup()
+
+# write.csv(all_compounds, "all_compounds.csv", row.names = FALSE)
+```
+
+
+I used the Python script `google-scholar-pull-gui.py` which can be assessed on my [GitHub](https://github.com/JakeMartinResearch/g-scholar-pull-user)   
+
+The script search all CAS numbers on the PubChem database, and extracts CID, and the Anatomical Therapeutic Chemical (ATC) Classification.   
+
+Below I have read in the resulting search **💿 pubchem-compound-identifiers.csv**.   
+
+```{r}
+setwd(data_wd)
+pubchem_atc <- read.csv("pubchem-compound-identifiers.csv")
+```
+
+Apply our custom function `process_atc_data()` to make the ATC codes more usable   
+
+```{r}
+pubchem_atc_tidy <- process_atc_data(pubchem_atc) %>% 
+  rename(compound_cas_corrected = input_cas)
+
+remove(pubchem_atc)
+```
+
+Add this classification information to the dataset   
+
+```{r}
+all_databases <- all_databases %>% 
+  dplyr::left_join(., pubchem_atc_tidy, by = "compound_cas_corrected")
+```
+
+
+## 📀 Complete dataframe
+
+This is the complete data frame we will use for all downstream analysis and summaries     
+
+Let's see how many compounds have an associated ATC classification 990/1756 (56.36)    
+
+```{r}
+all_databases %>% 
+  dplyr::group_by(compound_cas_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::reframe(
+    total_compounds = n_distinct(compound_cas_corrected),
+    compounds_with_atc = sum(!is.na(atc_classification)),
+    percent_atc = round((compounds_with_atc/total_compounds)*100,2)
+  ) %>% 
+  gt()
+```
+
+This code saves the data   
+
+```{r}
+# setwd(data_wd)
+# fwrite(all_databases, "martin-field-vs-lab-all-databases.csv")
+```
