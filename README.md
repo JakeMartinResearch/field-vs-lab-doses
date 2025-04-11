@@ -8,15 +8,32 @@ This repository contains all the scripts for the comparative analysis of pharmac
 
 ------------------------------------------------------------------------
 
-## 🔍 Project Overview
+## 📖 Project Overview
 
-Pharmaceutical pollution is an escalating issue, with widespread contamination now well-documented across aquatic ecosystems globally. In parallel, research into the behavioural effects of pharmaceuticals on aquatic organisms has expanded rapidly, revealing that some of these compounds can alter behaviour even at environmentally relevant concentrations. However, a recent systematic evidence map on this topic has highlighted substantial variability in the exposure concentrations used across behavioural tests—raising questions about their environmental realism. In this study, we compare 767 behavioural assays with over 10 million pharmaceutical occurrence records from three major global monitoring databases. Our analysis reveals that minimum tested concentrations in behavioural studies are, on average, 43 times higher than median surface water concentrations and 10 times higher than median concentrations in treated wastewater. Notably, more than half of the tested compounds were never assessed at levels below the 95% credible interval of observed wastewater concentrations. Furthermore, the pharmaceuticals most frequently tested in behavioural assays showed only weak correspondence with those most commonly detected in the environment. These findings suggest a significant misalignment between experimental design and environmental reality, potentially limiting the relevance of behavioural ecotoxicology for ecological risk assessments and evidence-based environmental regulation.  
+Pharmaceutical pollution is an escalating issue, with widespread contamination now well-documented across aquatic ecosystems globally. In parallel, research into the behavioural effects of pharmaceuticals on aquatic organisms has expanded rapidly, revealing that some of these compounds can alter behaviour even at environmentally relevant concentrations. However, a recent systematic evidence map on this topic has highlighted substantial variability in the exposure concentrations used across behavioural tests---raising questions about their environmental realism. In this study, we compare 767 behavioural assays with over 10 million pharmaceutical occurrence records from three major global monitoring databases. Our analysis reveals that minimum tested concentrations in behavioural studies are, on average, 43 times higher than median surface water concentrations and 10 times higher than median concentrations in treated wastewater. Notably, more than half of the tested compounds were never assessed at levels below the 95% credible interval of observed wastewater concentrations. Furthermore, the pharmaceuticals most frequently tested in behavioural assays showed only weak correspondence with those most commonly detected in the environment. These findings suggest a significant misalignment between experimental design and environmental reality, potentially limiting the relevance of behavioural ecotoxicology for ecological risk assessments and evidence-based environmental regulation.
+
+------------------------------------------------------------------------
+
+## 📝 Associated article
+
+-   **Title**: *Aligning Behavioural Ecotoxicology with Real-World Water Concentrations: Current Minimum Tested Levels for Pharmaceuticals Far Exceed Environmental Reality*\
+
+-   **Authors**: Jake M. Martin^1,2,3,📩^, Jack A. Brand^2,4^, Erin S. McCallum^2^\
+
+-   **Institutions**:\
+    ^1^ School of Life and Environmental Sciences, Deakin University, Geelong, Victoria, Australia\
+    ^2^ Department of Wildlife, Fish, and Environmental Studies, Swedish University of Agricultural Sciences, Umeå, Sweden\
+    ^3^ School of Biological Sciences, Monash University, Clayton, Victoria, Australia\
+    ^4^ Institute of Zoology, Zoological Society of London, London, United Kingdom\
+    ^📩^ Corresponding author\
+
+-   **Status**: 🚧 Unpublished 🚧
 
 ------------------------------------------------------------------------
 
 ## 📁 Repository Structure
 
-```
+```         
 📂 field-vs-lab-doses/
 ├── 📂 fig/                          # All figures associated with the project
 ├── 📂 mods/                         # All statistical models associated with the project
@@ -29,39 +46,43 @@ Pharmaceutical pollution is an escalating issue, with widespread contamination n
 
 ## 📥 How to Use
 
-1. **Clone the repository:**
+1.  **Clone the repository:**
 
-   ```bash
-   git clone https://github.com/JakeMartinResearch/field-vs-lab-doses.git
-   ```
-   
-2. **Download data** you can download data from OSF framework and save in called data within the project directory 
-
-   - `EIPAAB-database.csv`
-   - `pharms-uba_v3_2021_0.xlsx`
-   - `pnas.2113947119.sd04.xlsx`
-   - `norman_pharma.csv`
-   - `pubchem-compound-identifiers.csv`
-   - `martin-field-vs-lab-all-databases.csv`
-   
-   For example...
-   
-   ```
-   📂 field-vs-lab-doses/
-    └── 📂 data/  
-         ├── 📄 EIPAAB-database.csv
-         ├── 📄 pharms-uba_v3_2021_0.xlsx
-         ├── 📄 pnas.2113947119.sd04.xlsx
-         ├── 📄 norman_pharma.csv
-         ├── 📄 pubchem-compound-identifiers.csv
-         └── 📄 martin-field-vs-lab-all-databases.csv
+    ``` bash
+    git clone https://github.com/JakeMartinResearch/field-vs-lab-doses.git
     ```
 
-3. **Run scripts** from the `scripts/` directory in any order:
+2.  **Download data** you can download data from OSF framework and save in called data within the project directory. Martin, J. M., Brand, J. A., & McCallum, E. (2025). Aligning Behavioural Ecotoxicology with Real-World Water Concentrations. <https://doi.org/10.17605/OSF.IO/H6CDE>
 
-   - `field-vs-lab-doses-1.Rmd`
-   - `field-vs-lab-doses-2.Rmd`
+-   [`EIPAAB-database.csv`](https://osf.io/uvnht/download)
 
+-   [`pharms-uba_v3_2021_0.xlsx`](https://osf.io/6a7vd/download)
+
+-   [`pnas.2113947119.sd04.xlsx`](https://osf.io/gp5tw/download)
+
+-   [`norman_pharma.csv`](https://osf.io/g6h37/download)
+
+-   [`pubchem-compound-identifiers.csv`](https://osf.io/pqnbx/download)
+
+-   [`martin-field-vs-lab-all-databases.csv`](https://osf.io/ht6sk/download)/
+
+    For example.../
+
+    ```         
+    📂 field-vs-lab-doses/
+     └── 📂 data/  
+          ├── 📄 EIPAAB-database.csv
+          ├── 📄 pharms-uba_v3_2021_0.xlsx
+          ├── 📄 pnas.2113947119.sd04.xlsx
+          ├── 📄 norman_pharma.csv
+          ├── 📄 pubchem-compound-identifiers.csv
+          └── 📄 martin-field-vs-lab-all-databases.csv
+    ```
+
+3.  **Run scripts** from the `scripts/` directory in any order:
+
+    -   `field-vs-lab-doses-1.Rmd`
+    -   `field-vs-lab-doses-2.Rmd`
 
 ------------------------------------------------------------------------
 
@@ -74,7 +95,7 @@ To work with this project in RStudio:
 2.  Paste this URL in the **Repository URL** field:
 
 ```{=html}
-<pre>https://github.com/JakeMartinResearch/field-vs-lab-doses.git</pre>
+https://github.com/JakeMartinResearch/field-vs-lab-doses.git
 ```
 3.  Choose a folder on your computer
 
@@ -103,7 +124,7 @@ If you use or adapt this repository, please cite:
 
 If you use the created database `martin-field-vs-lab-all-databases.csv`, please cite:
 
->  Martin, JM. et al. (2025). *Aligning Behavioural Ecotoxicology with Real-World Water Concentrations: Current Minimum Tested Levels for Pharmaceuticals Far Exceed Environmental Reality* [Manuscript in preparation].
+> Martin, J. M., Brand, J. A., & McCallum, E. (2025). Aligning Behavioural Ecotoxicology with Real-World Water Concentrations [martin-field-vs-lab-all-databases.csv]. <https://doi.org/10.17605/OSF.IO/H6CDECDE>
 
 ------------------------------------------------------------------------
 
@@ -120,5 +141,3 @@ If you use the created database `martin-field-vs-lab-all-databases.csv`, please 
 🧪 **ORCID**: [0000-0001-9544-9094](https://orcid.org/0000-0001-9544-9094)
 
 ------------------------------------------------------------------------
-
-
