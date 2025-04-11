@@ -1011,8 +1011,7 @@ The script search all CAS numbers on the PubChem database, and extracts CID, and
 Below I have read in the resulting search **💿 pubchem-compound-identifiers.csv**.   
 
 ```{r}
-setwd(data_wd)
-pubchem_atc <- read.csv("pubchem-compound-identifiers.csv")
+pubchem_atc <- read.csv(paste0(data_wd, "pubchem-compound-identifiers.csv"))
 ```
 
 Apply our custom function `process_atc_data()` to make the ATC codes more usable   
