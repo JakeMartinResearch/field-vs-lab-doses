@@ -247,7 +247,6 @@ This is the database made in part one of this script `martin-field-vs-lab-all-da
 ## All databases
 
 ```{r}
-setwd(data_wd)
 all_databases <- fread(paste0(data_wd, "./martin-field-vs-lab-all-databases.csv"))
 ```
 
