@@ -34,7 +34,7 @@ knit: |
 <!------------------------------->
 
 **PART 1 of 2** 
-This script "field-vs-lab-doses-r-1" is the first of two used for this project. This script tidies the input databases and combines them into a single data frame for analysis `martin-field-vs-lab-all-databases.csv`. The second script, "field-vs-lab-doses-r-2", deals with the analysis. If you download the associated data in the Open Science Frame work, you can run "field-vs-lab-doses-r-2" independently.   
+This script "field-vs-lab-doses-r-1" is the first of two used for this project. This script tidies the input databases and combines them into a single data frame for analysis `martin-field-vs-lab-all-databases.csv`. The second script, "field-vs-lab-doses-r-2", deals with the analysis. If you download the data files for this project from the Open Science Framework (https://osf.io/h6cde/, DOI 10.17605/OSF.IO/H6CDE), you can run this script independently.     
 
 **ARTICLE** 
 This R script is associated with **Martin et al (2025)** "Aligning Behavioural Ecotoxicology Tests with Real-World Water Concentrations: Current Minimum Tested Levels Far Exceed Environmental Reality" DOI: <*to be added*> 

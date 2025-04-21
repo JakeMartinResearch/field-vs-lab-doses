@@ -37,7 +37,7 @@ knit: |
 This file is written to act as Supplementary file 1 as well as being the script for analysis
 
 **SCRIPT PART 2 of 2** 
-This script "field-vs-lab-doses-r-2" is the second of two used for this project. The second script, "field-vs-lab-doses-r-2", deals with the analysis. The first script, "field-vs-lab-doses-r-1", tidies the input databases and combines them into a single data frame for analysis. If you download the data files for this project from the Open Sciecne Framework (), you can run this script independently.   
+This script "field-vs-lab-doses-r-2" is the second of two used for this project. The second script, "field-vs-lab-doses-r-2", deals with the analysis. The first script, "field-vs-lab-doses-r-1", tidies the input databases and combines them into a single data frame for analysis. If you download the data files for this project from the Open Science Framework (https://osf.io/h6cde/, DOI 10.17605/OSF.IO/H6CDE), you can run this script independently.   
 
 **ARTICLE** 
 This R script is associated with **Martin et al (2025)** "Aligning Behavioural Ecotoxicology Tests with Real-World Water Concentrations: Current Minimum Tested Levels Far Exceed Environmental Reality" DOI: <*to be added*> 
@@ -923,6 +923,54 @@ Saving figure
 #        width = 210,
 #        height = 297/1.5,  # Specify the height of the plot
 #        units = "mm")
+```
+
+Is this trend still present if the extreme concentration is removed. The compound is streptomycin (CAS: 57-92-1)   
+
+```{r}
+wastewater_conc %>% 
+  dplyr::arrange(desc(effluent_median_log)) %>% 
+  dplyr::slice(1)
+```
+
+Building an identical model without streptomycin (outlier removed; or)
+
+```{r}
+# options(brms.backend = "cmdstanr")
+# eff_concentration_mod_log_or <- brm(eff_concentration_str,
+#                data = wastewater_conc %>% 
+#                  dplyr::filter(compound_cas_corrected != "57-92-1"),
+#                cores = 4,
+#                chains = 4,
+#                #prior = mod_priors, #use defaults
+#                warmup = 1000,
+#                seed = 20250418,
+#                thin = 2,
+#                iter = 8000,
+#                control = list(max_treedepth = 20, adapt_delta = 0.95),
+#                save_pars = save_pars(all=TRUE),
+#                sample_prior = TRUE,
+#                file = paste0(mods_wd, './eff_concentration_mod_log_or'))
+```
+
+
+Reload the model if necessary.  
+
+```{r}
+eff_concentration_mod_log_or <-  readRDS(file = paste0(mods_wd, "./eff_concentration_mod_log_or.rds"))
+```
+
+
+Checking estimates   
+
+```{r}
+model_summary_2_1 <-  as.data.frame(fixef(eff_concentration_mod_log_or, summary = TRUE)) %>% 
+  rownames_to_column() %>% 
+  clean_names()
+
+model_summary_2_1 %>% 
+  dplyr::mutate(across(where(is.double), ~ round(.x, 3))) %>% 
+  gt()
 ```
 
 ##### Fig S4
