@@ -33,11 +33,8 @@ knit: |
 # 📕 README
 <!------------------------------->
 
-**SUPPLEMENTARY FILE 1**
-This file is written to act as Supplementary file 1 as well as being the script for analysis
-
-**SCRIPT PART 2 of 2** 
-This script "field-vs-lab-doses-r-2" is the second of two used for this project. The second script, "field-vs-lab-doses-r-2", deals with the analysis. The first script, "field-vs-lab-doses-r-1", tidies the input databases and combines them into a single data frame for analysis. If you download the data files for this project from the Open Science Framework (https://osf.io/h6cde/, DOI 10.17605/OSF.IO/H6CDE), you can run this script independently.   
+**SCRIPT PART 2 of 3** 
+This script "field-vs-lab-doses-r-2" is the second of three used for this project. The second script, "field-vs-lab-doses-r-2", deals with the analysis. The first script, "field-vs-lab-doses-r-1", tidies the input databases and combines them into a single data frame for analysis, the third deals with a specific sub-set Quality Assurance and Quality Control (QA/QC) analysis. If you download the data files for this project from the Open Science Framework (https://osf.io/h6cde/, DOI 10.17605/OSF.IO/H6CDE), you can run this script independently.   
 
 **ARTICLE** 
 This R script is associated with **Martin et al (2025)** "Aligning Behavioural Ecotoxicology Tests with Real-World Water Concentrations: Current Minimum Tested Levels Far Exceed Environmental Reality" DOI: <*to be added*> 
@@ -107,7 +104,7 @@ style="display: inline-block; padding: 5px 10px; font-size: 16px; color: white; 
 **SCRIPT**  
 This is an R markdown script written in R studio (2023.09.0+463 “Desert Sunflower” Release). The 'field-vs-lab-doses' git repository hosts this script, and if downloaded (or pulled) it will reproduce all data tidy/filter, analysis, and visualisations used in Martin et al (2025). The GitHub repository includes all raw input data from the four open access databases, as well as all output data and figures. I have tried to structure this code with Open, Reliable, and Transparent (ORT) coding practices in mind. Feel free to reach out if anything is unclear.  
 
-The R script first cleans and filters each databases to make them comparable. In the gernalsit sensce In terms of filtering, we target pharmaceutical compounds, surface waters/waste water effluent, and environmental/lab samples measured in units of mass per volume of water (e.g. ug/L).  
+The R script first cleans and filters each databases to make them comparable. In the gernalsit sensce In terms of filtering, we target pharmaceutical compounds, surface waters/waste water, and environmental/lab samples measured in units of mass per volume of water (e.g. ug/L).  
 
 We then summarise occurrence and concentrations between EIPAAB the three environmental databases (UBA, Wilkson and NORMAN) separately, to highlight the consistency of different environmental databases.   
 
@@ -149,7 +146,6 @@ I (Jake Martin) am dyslexic. I have made an effort to review the script for gram
 <!------------------------------->
 
 Here we define our Knit settings, to make the output more user friendly, and to cache output for faster knitting.  
-
 ```{r setup}
 #kniter setting
 knitr::opts_chunk$set(
@@ -167,10 +163,10 @@ if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
 pkgs <- c(
   # ----- Data Visualisation -----
   "ggthemes", "bayesplot", "gt", "gtsummary", "plotly", "qqplotr", "ggrepel",
-  "colorspace",
+  "colorspace", "flextable", "officer", "scales",
   
   # ----- Tidy Data and Wrangling -----
-  "tidyverse", "janitor", "readxl", "broom.mixed", "data.table", "devtools", "scales",
+  "tidyverse", "janitor", "readxl", "broom.mixed", "data.table", "devtools", "scales", "glue",
   
   # ----- Modelling and Statistical Analysis -----
   "brms", "rstan", "cmdstanr", "marginaleffects", "performance", "emmeans",
@@ -188,7 +184,6 @@ Here's a list of the package names
 ```{r}
 pkgs
 ```
-
 
 <!------------------------------->
 # 🔧 Custom functions 
@@ -271,22 +266,28 @@ total_water_samples <- all_databases %>%
   dplyr::filter(source != "eipaab") %>% 
   dplyr::reframe(n = sum(n_units_est, na.rm = TRUE)) %>% 
   dplyr::pull(n)
-  
-paste0("There are ", total_compounds_eipaab, " behavioural ecotoxicology exposures (compounds by species) and ", total_water_samples, " water samples")
+
+glue::glue("There are {total_compounds_eipaab}, behavioural ecotoxicology exposures (compounds by species) and {total_water_samples}, water samples.")
 ```
 
-How many water samples are surface water vs wastewater
+
+```{r}
+all_databases %>% 
+  dplyr::filter(value < 0)
+```
+
+How many water samples are surface water vs waste water
 
 ```{r}
 all_databases %>% 
   dplyr::filter(source != "eipaab") %>% 
   dplyr::group_by(matrix_group) %>% 
   dplyr::reframe(n = sum(n_units_est, na.rm = TRUE)) %>% 
-  gt()
+  flextable() %>% 
+  font(fontname = "Arial", part = "all")
 ```
 
-
-### Table S1 (Table 1)
+### Table 1
 
 A breakdown for data contributed by each data source.  
 
@@ -314,22 +315,25 @@ total_data <- all_databases %>%
 
 n_summary <- rbind(soruce_data, total_data)
 
-table_1 <- n_summary %>% 
-  gt() %>% 
-    fmt_number(
-    columns = "Data",
-    decimals = 0
-    ) %>% 
-  cols_align(
-    align = "center", 
-    columns = everything()
-  )
+
+table_1 <- n_summary %>%
+  mutate(Data = round(Data, 0)) %>%
+  flextable() %>%
+  align(align = "center", part = "all") %>% 
+  autofit()
+
 
 table_1
 ``` 
 
 
 *Note: (a) each row of the EIPAAB database represents a unique species by compound exposure; (b) each row within the NORMAN and PHARMS-UBA represents one of more samples, as a row can be a measure of central tendency (e.g. mean or median) or a single value, all rows in the Wilkson database represent a single sample; ‡ NORMAN database was filtered to remove data from the German Environment Agency (UBA), and restricted to 2014-2022, as the PHARMS-UBA also included data from NORMAN prior to 2014. Thus, this number is not a true total number of pharmaceutical samples present in the NORMAN database.*
+
+Save the table as a word document `Table_1.docx`
+
+```{r}
+save_as_docx(table_1, path = paste0(fig_wd, "./table_1.docx"))
+```
 
 
 Number of aggregate values that had missing sample size.   
@@ -362,116 +366,222 @@ source_units_nas <- all_databases %>%
   ))
 
 source_units_nas %>% 
-  gt()
+  flextable() %>% 
+  autofit()
 ```
-
 
 ## Cross-over
 
 Checking the cross-over between the compounds assessed in behavioural test against all environmental occurrence data.  
 
 ```{r}
-eipaab_compounds_list <- all_databases %>% 
-  dplyr::filter(source == "eipaab") %>% 
-  dplyr::distinct(compound_name_corrected) %>% 
+eipaab_compounds_list <- all_databases %>%
+  dplyr::filter(source == "eipaab") %>%
+  dplyr::distinct(compound_name_corrected) %>%
   dplyr::pull(compound_name_corrected)
 
 n_eipaab_compounds <- length(eipaab_compounds_list)
 
-enviro__cross_over_compounds_list <- all_databases %>% 
-  dplyr::filter(source != "eipaab" & compound_name_corrected %in% eipaab_compounds_list) %>% 
-  dplyr::distinct(compound_name_corrected) %>% 
+enviro__cross_over_compounds_list <- all_databases %>%
+  dplyr::filter(source != "eipaab" &
+                  compound_name_corrected %in% eipaab_compounds_list) %>%
+  dplyr::distinct(compound_name_corrected) %>%
   dplyr::pull(compound_name_corrected)
 
 n_cross_over_compounds <- length(enviro__cross_over_compounds_list)
 
-percent_cross_over = round(n_cross_over_compounds/n_eipaab_compounds*100,2)
+percent_cross_over = round(n_cross_over_compounds / n_eipaab_compounds *
+                             100, 2)
 
-paste0(n_cross_over_compounds, " of the ", n_eipaab_compounds, " pharmaceuticals tested in the EIPAAB database (with an environmental motivation) were present in the environmental databases (i.e. ", percent_cross_over, "%)")
+glue::glue(
+  "{n_cross_over_compounds} of the {n_eipaab_compounds} pharmaceuticals tested in the EIPAAB database (with an environmental motivation) were present in the environmental databases (i.e. {percent_cross_over}%)."
+)
 ```
+
 
 ## Concentrations 
 
 For questions around concentration, I will filtered for only cases where the levels are above zero or above the limit of detection (i.e. positive detections or above LOD). We will do this for two reasons, the first being that when researchers are trying to estimate the risk of environmental exposure, we assume that they are emulating potential exposure events at a contaminated site, not trying to replicate a theoretical global surface water average. The second is, by removing zero values and values below LODs, we are trying to be ***more conservative*** with the relative comparison between tested doses in behavioural ecotoxicology and observed environmental doses (as opposed to using some value substitute/estimated value for samples below detection limit). We are also using both single values and summary values of central tendency (means, median, ect). Fig
 
-In this section we are calculating summary metrics for concentrations used in the behavioural test and detected in surface waters and effluent in the enviromental data. We will do this separately for effluent and surface waters samples. We are calculating, the mean, median, min, max, range, n (number of contributing data points), standard deviation (sd), standard error (se), and the upper and lower 95% credible intervals (ci_upper, ci_lower) using empirical quantiles.  
+In this section we are calculating summary metrics for concentrations used in the behavioural test and detected in surface waters and wastewater in the enviromental data. We will do this separately for wastewater and surface waters samples. We are calculating, the mean, median, min, max, range, n (number of contributing data points), standard deviation (sd), standard error (se), and the upper and lower **95% credible intervals (ci_upper, ci_lower) using empirical quantiles**.  
 
 ```{r}
-conc_summary <- all_databases %>% 
-  dplyr::filter(value > 0) %>% 
-  dplyr::group_by(matrix_group, compound_name_corrected) %>% 
-  dplyr::reframe(mean = mean(value, na.rm = TRUE),
-                 median = median(value, na.rm = TRUE),
-                 min = min(value, na.rm = TRUE),
-                 max = max(value, na.rm = TRUE),
-                 range = max-min,
-                 n = length(unique_row_id),  # Sample size
-                 sd = sd(value, na.rm = TRUE),  # Standard deviation
-                 ci_lower = quantile(value, 0.025, na.rm = TRUE),  #95% credible interval using quantiles
-                 ci_upper = quantile(value, 0.975, na.rm = TRUE)
-                 ) %>% 
-  dplyr::mutate(ci_lower = if_else(is.na(ci_lower), NA, ci_lower),
-                ci_upper = if_else(is.na(ci_upper), NA, ci_upper)) %>% 
-  tidyr::complete(
-    tidyr::expand(nesting(matrix_group, compound_name_corrected))
-  )
+conc_summary <- all_databases %>%
+  dplyr::filter(value > 0) %>%
+  dplyr::group_by(matrix_group, compound_name_corrected) %>%
+  dplyr::reframe(
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE),
+    min = min(value, na.rm = TRUE),
+    max = max(value, na.rm = TRUE),
+    range = max - min,
+    n = length(unique_row_id),
+    sd = sd(value, na.rm = TRUE),
+    ci_lower = quantile(value, 0.025, na.rm = TRUE),
+    ci_upper = quantile(value, 0.975, na.rm = TRUE)
+  ) %>%
+  dplyr::mutate(
+    ci_lower = if_else(is.na(ci_lower), NA, ci_lower),
+    ci_upper = if_else(is.na(ci_upper), NA, ci_upper)
+  ) %>%
+  tidyr::complete(tidyr::expand(nesting(matrix_group, compound_name_corrected)))
 ```
 
 
-Here we will add the summary statistics from above to the full database, so we can see how many EIPAAB tested concentrations fall under the median surface water and effluent concentrations for each compound.   
+Making a more use friendly table with the concentration of each compound that has a positive detection for wastewater and or surf waters.
 
 ```{r}
-rename_cols <- conc_summary %>% 
-  dplyr::select(-matrix_group, -compound_name_corrected) %>% 
+cas_number <- all_databases %>%
+  dplyr::filter(value > 0) %>%
+  dplyr::group_by(compound_cas_corrected) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(compound_cas_corrected, compound_name_corrected)
+
+
+conc_summary_df <- conc_summary %>% 
+  dplyr::left_join(., cas_number, by = "compound_name_corrected") %>% 
+  dplyr::select(compound_name_corrected, compound_cas_corrected, n, everything()) %>% 
+  dplyr::rename(compound_name = compound_name_corrected,
+                compound_cas = compound_cas_corrected,
+                matrix = matrix_group,
+                cri_95_lower = ci_lower,
+                cri_95_upper = ci_upper)
+```
+
+Saving as a date frame 
+
+```{r}
+write.csv(conc_summary_df, paste0(data_wd, "./martin-concentration-summary-table.csv"), row.names = FALSE)
+```
+
+For the Supplementary martial, we will make a smaller table. 
+
+```{r}
+eff_table <- conc_summary_df %>% 
+  dplyr::filter(matrix == "effluent") %>% 
+  dplyr::mutate(across(where(is.double), ~ formatC(.x, format = "f", digits = 4))) %>% 
+  dplyr::mutate(
+    Compound = paste0(compound_name, " (", compound_cas, ")"),
+    'Wastewater 95% credible interval (µg/L)‡' = if_else(
+      n == 1,
+      NA_character_,
+      paste0(cri_95_lower, "–", cri_95_upper)
+    ),
+    'Wastewater range (µg/L)' = if_else(
+      n == 1,
+      NA_character_,
+      paste0(min, "–", max)
+    ),
+    'Wastewater n' = round(n,0),
+    'Wastewater median (µg/L)†' = median
+  ) %>%
+  dplyr::select(Compound, 'Wastewater n', 'Wastewater median (µg/L)†', 'Wastewater 95% credible interval (µg/L)‡', 'Wastewater range (µg/L)')
+
+surf_table <- conc_summary_df %>% 
+  dplyr::filter(matrix == "surfacewater") %>% 
+  dplyr::mutate(across(where(is.double), ~ formatC(.x, format = "f", digits = 4))) %>% 
+  dplyr::mutate(
+    Compound = paste0(compound_name, " (", compound_cas, ")"),
+    'Surface water 95% credible interval (µg/L)‡' = if_else(
+      n == 1,
+      NA_character_,
+      paste0(cri_95_lower, "–", cri_95_upper)
+    ),
+    'Surface water range (µg/L)' = if_else(
+      n == 1,
+      NA_character_,
+      paste0(min, "–", max)
+    ),
+    'Surface water n' = round(n,0),
+    'Surface water median (µg/L)†' = median
+  ) %>%
+  dplyr::select(Compound, 'Surface water n', 'Surface water median (µg/L)†', 'Surface water 95% credible interval (µg/L)‡', 'Surface water range (µg/L)')
+
+table_all <- full_join(surf_table, eff_table, by = "Compound") %>%
+  gt() %>%
+  cols_align(align = "center", columns = everything()) %>%
+  tab_options(table.font.size = px(11)) %>% 
+    tab_header(
+    title = md("**Summary of Measured Pharmaceutical Concentrations**"),
+    subtitle = md("This summary table was compiled for *Martin et al. (2025)*. It is based on a filtered synthesis of three publicly available datasets: (1) the NORMAN EMPODAT database for chemical occurrence (accessed 18/03/2025), (2) the Umweltbundesamt Pharmaceuticals in the Environment database (PHARMS-UBA; accessed 19/12/2024), and (3) Wilkinson et al. (2022) Pharmaceutical Pollution of the World’s Rivers database. Data were restricted to entries reported in mass per volume of water (e.g., µg/L) and relevant to surface water and wastewater matrices (for details of the filtering process, please refer to Martin et al. (2025)). Users of this table should **cite the original sources of the data: NORMAN EMPODAT, PHARMS-UBA, and Wilkinson et al. (2022).**")
+  ) %>%
+  tab_source_note(
+    md("(†) Summary statistics reflect only positive detections. (‡) Credible intervals represent the lower and upper 95% empirical quantiles.")
+  )
+```
+
+Saving the table as a HTLM file
+
+```{r}
+gtsave(table_all, filename = paste0(fig_wd, "./martin-et-al-supplemratry-file-1-concentration-summary-table.html"))
+```
+
+
+Here we will add the summary statistics from above to the full database, so we can see how many EIPAAB tested concentrations fall under the median surface water and wastewater concentrations for each compound.   
+
+```{r}
+rename_cols <- conc_summary %>%
+  dplyr::select(-matrix_group,-compound_name_corrected) %>%
   colnames()
 
-conc_summary_eff <- conc_summary %>% 
-  dplyr::filter(matrix_group == "effluent") %>% 
-   dplyr::rename_with(
-    .cols = all_of(rename_cols),  # Select columns to rename
-    .fn = ~ paste0("effluent_", .)  # Prefix with "effluent_"
-  ) %>% 
+conc_summary_eff <- conc_summary %>%
+  dplyr::filter(matrix_group == "effluent") %>%
+  dplyr::rename_with(.cols = all_of(rename_cols),
+                     .fn = ~ paste0("effluent_", .)) %>%
   dplyr::select(-matrix_group)
 
 
-conc_summary_surf <- conc_summary %>% 
-  dplyr::filter(matrix_group == "surfacewater") %>% 
-   dplyr::rename_with(
-    .cols = all_of(rename_cols),  # Select columns to rename
-    .fn = ~ paste0("surfacewater_", .)  # Prefix with "effluent_"
-  ) %>% 
+conc_summary_surf <- conc_summary %>%
+  dplyr::filter(matrix_group == "surfacewater") %>%
+  dplyr::rename_with(.cols = all_of(rename_cols),
+                     .fn = ~ paste0("surfacewater_", .)) %>%
   dplyr::select(-matrix_group)
 
 
-all_databases_with_sum <- all_databases %>% 
-  dplyr::filter(source == "eipaab") %>% 
-  dplyr::left_join(., conc_summary_eff, by = "compound_name_corrected") %>% 
-  dplyr::left_join(., conc_summary_surf, by = "compound_name_corrected") %>% 
-  dplyr::mutate(under_med_surf = if_else(value < surfacewater_median, 1, 0),
-                under_hci_surf = if_else(value < surfacewater_ci_upper, 1, 0),
-                under_med_effl = if_else(value < effluent_median, 1, 0),
-                under_hci_effl = if_else(value < effluent_ci_upper, 1, 0),
-                diff_med_surf = value/surfacewater_median,
-                diff_hic_surf = value/surfacewater_ci_upper,
-                diff_med_effl = value/effluent_median,
-                diff_hic_effl = value/effluent_ci_upper
-                )
+all_databases_with_sum <- all_databases %>%
+  dplyr::filter(source == "eipaab") %>%
+  dplyr::left_join(., conc_summary_eff, by = "compound_name_corrected") %>%
+  dplyr::left_join(., conc_summary_surf, by = "compound_name_corrected") %>%
+  dplyr::mutate(
+    under_med_surf = if_else(value < surfacewater_median, 1, 0),
+    under_hci_surf = if_else(value < surfacewater_ci_upper, 1, 0),
+    under_med_effl = if_else(value < effluent_median, 1, 0),
+    under_hci_effl = if_else(value < effluent_ci_upper, 1, 0),
+    diff_med_surf = value / surfacewater_median,
+    diff_hic_surf = value / surfacewater_ci_upper,
+    diff_med_effl = value / effluent_median,
+    diff_hic_effl = value / effluent_ci_upper
+  )
 ```
 
 Making a database for surface waters and waste waters   
 
 ```{r}
 surfacewater_conc <- all_databases_with_sum %>%
-  dplyr::filter(!is.na(surfacewater_median), !is.na(value)) %>% 
-  dplyr::mutate(value_log = log(value),
-                surfacewater_median_log = log(surfacewater_median),
-                relative_year = year - min(year))
+  dplyr::filter(!is.na(surfacewater_median),!is.na(value)) %>%
+  dplyr::mutate(
+    value_log = log(value),
+    surfacewater_median_log = log(surfacewater_median),
+    relative_year = year - min(year)
+  )
 
 wastewater_conc <- all_databases_with_sum %>%
-  dplyr::filter(!is.na(effluent_median), !is.na(value)) %>% 
-  dplyr::mutate(value_log = log(value),
-                effluent_median_log = log(effluent_median),
-                relative_year = year - min(year))
+  dplyr::filter(!is.na(effluent_median),!is.na(value)) %>%
+  dplyr::mutate(
+    value_log = log(value),
+    effluent_median_log = log(effluent_median),
+    relative_year = year - min(year)
+  )
+```
+
+The relative_year is based on the earliest year, 1992.
+
+```{r}
+all_databases_with_sum %>%
+  dplyr::filter(!is.na(surfacewater_median),!is.na(value)) %>%
+  dplyr::summarise(min_year = min(year, na.rm = TRUE)) %>%
+  dplyr::pull(min_year)
 ```
 
 
@@ -481,53 +591,71 @@ wastewater_conc <- all_databases_with_sum %>%
 
 ##### Model structure
 
+In these models, we examine the relationship between the log-transformed minimum tested concentration (value_log) and the log-transformed median surface water concentration (surfacewater_median_log).analysis
+
 ```{r}
-concentration_str <- bf(value_log ~ surfacewater_median_log + relative_year,
+n = nrow(surfacewater_conc)
+print(glue("We have a sample size of {n} for this analysis, as its on the level of exposure but only for compounds with correspond surfacewater detections"))
+```
+
+To account for temporal trends and study design differences, we include two additional covariates:
+
+relative_year, defined as the number of years since the first publication in 1992, and doses, the number of concentration levels tested in each study.
+
+We fit a full model that includes all three predictors, and a null model that excludes wastewater_median_log, allowing us to assess the added predictive value of surface water concentrations through model comparison.
+
+```{r}
+concentration_str <- bf(value_log ~ surfacewater_median_log + relative_year + doses,
                   family = gaussian())
 
-concentration_str_null <- bf(value_log ~ relative_year,
+concentration_str_null <- bf(value_log ~ relative_year + doses,
                   family = gaussian())
 ```
 
 These are the default priors.  
 
 ```{r}
-suppressWarnings(get_prior(concentration_str, data = surfacewater_conc,  family = gaussian()))
+suppressWarnings(get_prior(concentration_str, data = surfacewater_conc,  family = gaussian())) %>% 
+  flextable() %>% 
+  autofit()
 ```
 
+##### Run model
 Run model. This has been hashed out as I have saved the model, and will re-load it instead of re-running it. 
 
 ```{r}
-# options(brms.backend = "cmdstanr")
-# concentration_mod_log <- brm(concentration_str,
-#                data = surfacewater_conc,
-#                cores = 4,
-#                chains = 4,
-#                #prior = mod_priors, #use defaults
-#                warmup = 1000,
-#                seed = 20250418,
-#                thin = 2,
-#                iter = 8000,
-#                control = list(max_treedepth = 20, adapt_delta = 0.95),
-#                save_pars = save_pars(all=TRUE),
-#                sample_prior = TRUE,
-#                file = paste0(mods_wd, './concentration_mod_log'))
-# 
-# concentration_mod_null_log <- brm(concentration_str_null,
-#                data = surfacewater_conc,
-#                cores = 4,
-#                chains = 4,
-#                #prior = mod_priors, #use defaults
-#                warmup = 1000,
-#                seed = 20250418,
-#                thin = 2,
-#                iter = 8000,
-#                control = list(max_treedepth = 20, adapt_delta = 0.95),
-#                save_pars = save_pars(all=TRUE),
-#                sample_prior = TRUE,
-#                file = paste0(mods_wd, './concentration_mod_null_log'))
-# 
-# print("Model complete")
+options(brms.backend = "cmdstanr")
+concentration_mod_log <- brm(
+  concentration_str,
+  data = surfacewater_conc,
+  cores = 4,
+  chains = 4,
+  #prior = mod_priors, #use defaults
+  warmup = 1000,
+  seed = 20250418,
+  thin = 2,
+  iter = 8000,
+  control = list(max_treedepth = 20, adapt_delta = 0.95),
+  save_pars = save_pars(all = TRUE),
+  sample_prior = TRUE,
+  file = paste0(mods_wd, './concentration_mod_log')
+)
+
+concentration_mod_null_log <- brm(
+  concentration_str_null,
+  data = surfacewater_conc,
+  cores = 4,
+  chains = 4,
+  #prior = mod_priors, #use defaults
+  warmup = 1000,
+  seed = 20250418,
+  thin = 2,
+  iter = 8000,
+  control = list(max_treedepth = 20, adapt_delta = 0.95),
+  save_pars = save_pars(all = TRUE),
+  sample_prior = TRUE,
+  file = paste0(mods_wd, './concentration_mod_null_log')
+)
 ```
 
 ##### Re-load models
@@ -542,32 +670,56 @@ concentration_mod_null_log <-  readRDS(file = paste0(mods_wd, "./concentration_m
 
 ##### Model diagnostics
 
-Comparing null model with surface water model  
+There's no clear evidence that the concentration model is better or worse than the null model for out-of-sample prediction. Based on the expected log predictive density (ELPD) between two models using approximate leave-one-out cross-validation (LOO-CV). 
 
 ```{r}
-loo_compare(loo(concentration_mod_log, moment_match = TRUE), loo(concentration_mod_null_log,  moment_match = TRUE))
+loo_null <- loo(concentration_mod_null_log, reloo = TRUE)
+loo_mod <- loo(concentration_mod_log, reloo = TRUE)
+loo_compare(loo_mod, loo_null)
 ```
 
-The null model is only slightly worse  
+A Bayes factor (BF) quantifies how much more likely the data are under one model compared to another. Where, BF > 1 support for the first model (concentration_mod_log), BF < 1 support for the second model (concentration_mod_null_log). 
+
+In this case: BF = 0.536 so the null model is about 1.87× more supported by the data (1/0.536 = 1.87) 
+
 
 ```{r}
 bayes_factor(concentration_mod_log, concentration_mod_null_log)
 ```
 
-The R2 value is very low.    
+This is a very low R², suggesting:The predictor(s) in the model account for very little of the outcome variability.  
+
+| Metric         | Value           |
+| -------------- | --------------- |
+| Conditional R² | *0.022*         |
+| 95% CI         | [0.004, 0.042]  |
+
 
 ```{r}
 performance::r2_bayes(concentration_mod_log, robust = FALSE, ci = 0.95)
 ```
 
-The mode roughly approximates the data  
+The model fits the marginal distribution of the response variable well.
 
-```{r}
+```{r, fig.height=5, fig.width=8}
 color_scheme_set("red")
-brms::pp_check(concentration_mod_log, ndraws = 50, type = "ecdf_overlay")   
+brms::pp_check(concentration_mod_log, ndraws = 25, type = "dens_overlay")
+brms::pp_check(concentration_mod_log, ndraws = 25, type = "ecdf_overlay")  
+y_rep <- posterior_predict(concentration_mod_log, ndraws = 1000)
+y_obs <- concentration_mod_log$data$value_log  # Replace with your actual response variable
+ppc_stat_2d(y = y_obs, yrep = y_rep, stat = c("median", "mad"))
+```
+
+```{r, fig.height=8, fig.width=8}
+performance::check_model(concentration_mod_log)
 ```
 
 Checking R-hat values to confirm model convergence and ESS fo estimates.   
+
+```{r}
+max_rhat <- max(rhat(concentration_mod_log), na.rm = TRUE)
+print(glue::glue("All R-hat values ≤ {max_rhat} (good convergence)."))
+```
 
 ```{r}
 print(summary(concentration_mod_log, prob = 0.95)) #All Rhat = 1 (good).  
@@ -575,16 +727,11 @@ print(summary(concentration_mod_log, prob = 0.95)) #All Rhat = 1 (good).
 
 Diagnostic plots look fine. A smaller shape value indicates greater overdispersion (variance is much larger than the mean).  
 
-```{r}
+```{r, fig.height=7, fig.width=7}
 color_scheme_set("red")  
 plot(concentration_mod_log)  
 ```
 
-
-Check model performance 
-```{r, fig.height=8, fig.width=8}
-performance::check_model(concentration_mod_log)
-```
 
 
 ##### Model estimates
@@ -597,11 +744,14 @@ estimate_data_year_1 <- marginal_effects(concentration_mod_log, effects = "relat
 ```
 
 
-These estimated coefficients represent the average effects across the entire dataset, controlling for (not averaging over) the other variables in the model. Because this is a log–log model, the coefficient for `log(surfacewater_median)` reflects an elasticity—that is, the percent change in the response `(log(value))` for a percent change in the predictor.
+These estimated coefficients represent the average effects of each predictor on the log-transformed tested concentration, controlling for (not averaging over) the other variables in the model. Because this is a log–log model, the coefficient for `log(surfacewater_median)` can be interpreted as an elasticity—that is, the percent change in the response associated with a percent change in the predictor.
 
-The estimated effect of `log(surfacewater_median)` was **β = 0.135** (95% CrI: –0.123 to 0.393), indicating that a **1% increase in surface water concentration** is associated with an average **0.135% increase in tested concentration**. However, because the 95% credible interval overlaps with zero, this **effect is not statistically well-supported**.
+The estimated effect of `log(surfacewater_median)` was **β = 0.128** (95% CrI: –0.133 to 0.389), suggesting that a **1% increase in surface water concentration** is associated with an average **0.128% increase in tested concentration**. However, the 95% credible interval includes zero, indicating substantial uncertainty and that the effect is **not well-supported** by the data.
 
-For relative_year, the estimated coefficient was **β = –0.110** (95% CrI: –0.173 to –0.046), suggesting a clear temporal decline in tested concentrations. Because the predictor is linear and the response is log-transformed, this implies that **each additional year** is associated with an average **10.4% decrease in tested concentration**, holding surface water concentration constant (`exp(–0.110) ≈ 0.896`, meaning the response is multiplied by ~0.896 each year).
+The estimated effect of relative_year was **β = –0.106** (95% CrI: –0.170 to –0.042), providing strong evidence of a temporal decline in tested concentrations. Since the predictor is linear and the outcome is log-transformed, this corresponds to an average **10% decrease in tested concentration per year** (where the exp(–0.106) ≈ 0.899; and (0.899−1) × 100 = −10.1%), holding all else constant.
+
+The estimated coefficient for doses was **β = 0.068** (95% CrI: –0.094 to 0.234), suggesting a weak positive association, but again with considerable uncertainty—**the effect is not credibly different from zero**.
+
 
 
 ```{r}
@@ -617,20 +767,56 @@ estimate_year_1 <- model_summary_1$estimate[3]
 L95CI_year_1 <- model_summary_1$q2_5[3]
 H95CI_year_1 <- model_summary_1$q97_5[3]
 
-
-model_summary_1 %>% 
+model_summary_1_ft <- model_summary_1 %>% 
   dplyr::mutate(across(where(is.double), ~ round(.x, 3))) %>% 
-  gt()
+  dplyr::rename("predictor" = rowname) %>% 
+  dplyr::mutate(CrI = paste0(q2_5, " to ", q97_5)) %>% 
+  dplyr::select(predictor, estimate, CrI) %>% 
+  flextable() %>%
+  set_header_labels(
+    predictor = "Predictor",
+    estimate = "Estimate",
+    CrI = "95% CrI"
+  ) %>%
+  autofit()
+
+model_summary_1_ft
 ```
 
-##### Fig S1 (Fig 1a)
+
+Saving the table 
+
+```{r}
+save_as_docx(model_summary_1_ft, path = paste0(fig_wd, "./table-s2.docx"))
+```
+
+This gives you the model-derived expected number of years (from the 1992 baseline) for convergence of tested and detected concentrations, for an average compound with average dose and average water concentration. 
+
+```{r}
+b0 <- model_summary_1$estimate[1]  # Intercept
+b1 <- model_summary_1$estimate[2]  # surfacewater_median_log
+b2 <- model_summary_1$estimate[3]  # relative_year
+b3 <- model_summary_1$estimate[4]  # doses
+
+x_bar <- mean(surfacewater_conc$surfacewater_median_log, na.rm = TRUE)
+d_bar <- mean(surfacewater_conc$doses, na.rm = TRUE)
+
+average_equal_years <- round(((-b0 + (1 - b1) * x_bar - b3 * d_bar) / b2),0)
+years_to_equal <- (1992 + average_equal_years)
+
+glue::glue("Based on model predictions for average compound, with the average number of doses, and average water concentration, it would take {average_equal_years} years from our baseline (i.e. 1992), for the tested dose to be equal with the meassured dose. In other words, based on current trends, tested doses wont be equal to field levels until {years_to_equal}")
+```
+
+##### Fig 1a
 
 ```{r, fig.height=5, fig.width=6}
-text_coord <- surfacewater_conc %>% 
-  summarise(y_max = max(value_log, na.rm = TRUE),
-            x_max = max(surfacewater_median_log, na.rm = TRUE),
-            x_min = min(surfacewater_median_log, na.rm = TRUE),
-            x = mean(c(x_max,x_min)))
+text_coord <- surfacewater_conc %>%
+  summarise(
+    y_max = max(value_log, na.rm = TRUE),
+    x_max = max(surfacewater_median_log, na.rm = TRUE),
+    x_min = min(surfacewater_median_log, na.rm = TRUE),
+    x = mean(c(x_max, x_min))
+  )
 
 y_coord <- text_coord %>% pull(y_max)
 
@@ -638,143 +824,248 @@ x_coord <- text_coord %>% pull(x_min)
 
 
 fig_1a <- ggplot() +
-  geom_line(data = estimate_data_1, aes(x = surfacewater_median_log, y = estimate__), color = "#1c4595", linewidth = 1) +
-  geom_ribbon(data = estimate_data_1, aes(x = surfacewater_median_log, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
-  geom_point(data = surfacewater_conc, aes(x = surfacewater_median_log, y = value_log), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
+  geom_line(
+    data = estimate_data_1,
+    aes(x = surfacewater_median_log, y = estimate__),
+    color = "#2D5F34",
+    linewidth = 1
+  ) +
+  geom_ribbon(
+    data = estimate_data_1,
+    aes(x = surfacewater_median_log, ymin = lower__, ymax = upper__),
+    fill = "#2D5F34",
+    alpha = 0.1
+  ) +
+  geom_point(
+    data = surfacewater_conc,
+    aes(x = surfacewater_median_log, y = value_log),
+    alpha = 0.4,
+    shape = 21,
+    color = "#2D5F34",
+    fill = "#2D5F34"
+  ) +
   annotate(
     "text",
-    x = x_coord, 
-    y = y_coord, 
+    x = x_coord,
+    y = y_coord,
     label = paste0(
-      "Bayesian log-log Gaussian regression", "\n",
-      "Effect estimate: ", round(estimate_1, 3), "\n",
-      "CI: ", round(L95CI_1, 3), " - ", round(H95CI_1, 3)
+      "Bayesian log-log Gaussian regression",
+      "\n",
+      "Effect estimate: ",
+      round(estimate_1, 3),
+      "\n",
+      "95%CrI: ",
+      round(L95CI_1, 3),
+      " to ",
+      round(H95CI_1, 3)
     ),
-    hjust = 0, vjust = 1, size = 4
+    hjust = 0,
+    vjust = 1,
+    size = 4
   ) +
   labs(
-    title = "Test vs surfacewater concentrations",
-    x = "Log median surface water concentration",
-    y = "Log tested concentration"
+    title = "(A)  Surface water vs exposure concentration",
+    x = "Exposure concentration (μg/L)*",
+    y = "Environmental concentration (μg/L)*",
+    caption = "*Values in μg/L space on a log scale"
   ) +
-  theme_clean() +
+  scale_y_continuous(
+    labels = function(x)
+      scales::label_scientific()(exp(x))
+  ) +
+  scale_x_continuous(
+    labels = function(x)
+      scales::label_scientific()(exp(x))
+  ) +
+  theme_few() +
   theme(
     legend.position = "bottom",
-    legend.justification = "center"
+    legend.justification = "center",
+    plot.caption      = element_text(
+      size   = 8,
+      hjust  = 0.5,
+      margin = margin(t = 6)
+    )
   )
-
 fig_1a
 ```
 
 Save this figure for the MS   
 
 ```{r}
-# ggsave(filename = paste0(fig_wd, "./figure-1a.pdf"),
-#        plot = fig_1a,
-#        width = 210,
-#        height = 297/1.5,  # Specify the height of the plot
-#        units = "mm")
+ggsave(filename = paste0(fig_wd, "./figure-1a.pdf"),
+       plot = fig_1a,
+       width = 210,
+       height = 297/1.5,
+       units = "mm")
 ```
 
 
-##### Fig S2
+##### Fig S1a
 
 Plot surface water concentrations by year   
 
-```{r}
-text_coord <- surfacewater_conc %>% 
-  summarise(y_max = max(value_log, na.rm = TRUE),
-            x_max = max(relative_year, na.rm = TRUE),
-            x_min = min(relative_year, na.rm = TRUE),
-            x_mean = mean(c(x_max,x_min)))
+```{r, fig.height=5, fig.width=6}
+text_coord <- wastewater_conc %>%
+  summarise(
+    y_max = max(value_log, na.rm = TRUE),
+    x_max = max(relative_year, na.rm = TRUE),
+    x_min = min(relative_year, na.rm = TRUE),
+    x_mean = mean(c(x_max, x_min))
+  )
 
 y_coord <- text_coord %>% pull(y_max)
 
 x_coord <- text_coord %>% pull(x_min)
 
 
-fig_s2 <- ggplot() +
-  geom_line(data = estimate_data_year_1, aes(x = relative_year, y = estimate__), color = "#1c4595", linewidth = 1) +
-  geom_ribbon(data = estimate_data_year_1, aes(x = relative_year, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
-  geom_point(data = surfacewater_conc, aes(x = relative_year, y = value_log), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
+fig_s1a <- ggplot() +
+  geom_line(
+    data = estimate_data_year_1,
+    aes(x = relative_year, y = estimate__),
+    color = "#2D5F34",
+    linewidth = 1
+  ) +
+  geom_ribbon(
+    data = estimate_data_year_1,
+    aes(x = relative_year, ymin = lower__, ymax = upper__),
+    fill = "#2D5F34",
+    alpha = 0.1
+  ) +
+  geom_point(
+    data = surfacewater_conc,
+    aes(x = relative_year, y = value_log),
+    alpha = 0.4,
+    shape = 21,
+    color = "#2D5F34",
+    fill = "#2D5F34"
+  ) +
   annotate(
     "text",
-    x = x_coord, 
-    y = y_coord, 
+    x = x_coord,
+    y = y_coord,
     label = paste0(
-      "Bayesian log-log Gaussian regression", "\n",
-      "Effect estimate: ", round(estimate_year_1, 3), "\n",
-      "CI: ", round(L95CI_year_1, 3), " - ", round(H95CI_year_1, 3)
+      "Bayesian log-log Gaussian regression",
+      "\n",
+      "Effect estimate: ",
+      round(estimate_year_1, 3),
+      "\n",
+      "95%CrI: ",
+      round(L95CI_year_1, 3),
+      " to ",
+      round(H95CI_year_1, 3)
     ),
-    hjust = 0, vjust = 1, size = 4
+    hjust = 0,
+    vjust = 1,
+    size = 4
   ) +
   labs(
-    title = "Test concentrations over time",
-    x = "Publication year",
-    y = "Log tested concentration"
+    title = "(A)  Exposure concentration vs year (surface water compounds)",
+    x = "Year",
+    y = "Exposure concentration (μg/L)*",
+    caption = "*Concentration values in μg/L space on a log scale"
   ) +
-  theme_clean() +
+  scale_y_continuous(
+    labels = function(x)
+      scales::label_scientific()(exp(x))
+  ) +
+  scale_x_continuous(
+    labels = function(x)
+      x + 1992
+  ) +
+theme_few() +
   theme(
     legend.position = "bottom",
-    legend.justification = "center"
+    legend.justification = "center",
+    plot.caption = element_text(
+      size   = 8,
+      hjust  = 0.5,
+      margin = margin(t = 6)
+    )
   )
-
-fig_s2
+fig_s1a
 ```
 
+Save this figure for the MS   
 
+```{r}
+ggsave(filename = paste0(fig_wd, "./figure-s1a.pdf"),
+       plot = fig_s1a,
+       width = 210,
+       height = 297/1.5,
+       units = "mm")
+```
 
 #### 🚽 Waste water
 
 ##### Model structure
 
+In these models, we examine the relationship between the log-transformed minimum tested concentration (value_log) and the log-transformed median wastewater concentration (effluent_median_log).
+
+but only for compounds with correspond wastewater detections
+
 ```{r}
-eff_concentration_str <- bf(value_log ~ effluent_median_log + relative_year ,
+n = nrow(wastewater_conc)
+print(glue("We have a sample size of {n} for this analysis, as its on the level of exposure, but only for compounds with correspond wastewater detections"))
+```
+
+To account for temporal trends and study design differences, we include two additional covariates:
+
+relative_year, defined as the number of years since the first publication in 1992, and doses, the number of concentration levels tested in each study.
+
+We fit a full model that includes all three predictors, and a null model that excludes effluent_median_log, allowing us to assess the added predictive value of wastewater concentrations through model comparison.
+
+```{r}
+eff_concentration_str <- bf(value_log ~ effluent_median_log + relative_year + doses,
                   family = gaussian())
 
-eff_concentration_str_null <- bf(value_log ~ relative_year,
+eff_concentration_str_null <- bf(value_log ~ relative_year + doses,
                   family = gaussian())
 ```
 
 These are the default priors.  
 
 ```{r}
-suppressWarnings(get_prior(eff_concentration_str, data = wastewater_conc,  family = gaussian()))
+suppressWarnings(get_prior(eff_concentration_str, data = wastewater_conc,  family = gaussian())) %>% 
+  flextable()
 ```
+##### Run model
 
 Run model. This has been hashed out as I have saved the model, and will re-load it instead of re-running it.
 
-
 ```{r}
-# options(brms.backend = "cmdstanr")
-# eff_concentration_mod_log <- brm(eff_concentration_str,
-#                data = wastewater_conc,
-#                cores = 4,
-#                chains = 4,
-#                #prior = mod_priors, #use defaults
-#                warmup = 1000,
-#                seed = 20250418,
-#                thin = 2,
-#                iter = 8000,
-#                control = list(max_treedepth = 20, adapt_delta = 0.95),
-#                save_pars = save_pars(all=TRUE),
-#                sample_prior = TRUE,
-#                file = paste0(mods_wd, './eff_concentration_mod_log'))
-# 
-# eff_concentration_mod_null_log <- brm(eff_concentration_str_null,
-#                data = wastewater_conc,
-#                cores = 4,
-#                chains = 4,
-#                #prior = mod_priors, #use defaults
-#                warmup = 1000,
-#                seed = 20250418,
-#                thin = 2,
-#                iter = 8000,
-#                control = list(max_treedepth = 20, adapt_delta = 0.9999),
-#                save_pars = save_pars(all=TRUE),
-#                sample_prior = TRUE,
-#                file = paste0(mods_wd, './eff_concentration_mod_null_log'))
-# print("Model complete")
+options(brms.backend = "cmdstanr")
+eff_concentration_mod_log <- brm(
+  eff_concentration_str,
+  data = wastewater_conc,
+  cores = 4,
+  chains = 4,
+  #prior = mod_priors, #use defaults
+  warmup = 1000,
+  seed = 20250418,
+  thin = 2,
+  iter = 8000,
+  control = list(max_treedepth = 20, adapt_delta = 0.95),
+  save_pars = save_pars(all = TRUE),
+  sample_prior = TRUE,
+  file = paste0(mods_wd, './eff_concentration_mod_log')
+)
+
+eff_concentration_mod_null_log <- brm(
+  eff_concentration_str_null,
+  data = wastewater_conc,
+  cores = 4,
+  chains = 4,
+  #prior = mod_priors, #use defaults
+  warmup = 1000,
+  seed = 20250418,
+  thin = 2,
+  iter = 8000,
+  control = list(max_treedepth = 20, adapt_delta = 0.95),
+  save_pars = save_pars(all = TRUE),
+  sample_prior = TRUE,
+  file = paste0(mods_wd, './eff_concentration_mod_null_log')
+)
 ```
 
 ##### Re-load models
@@ -789,36 +1080,70 @@ eff_concentration_mod_null_log <-  readRDS(file = paste0(mods_wd, "./eff_concent
 
 ##### Model diagnostics
 
-Comparing null model with effluent water model
+We compared the full model (including effluent_median_log) with the null model (excluding it) using approximate leave-one-out cross-validation (LOO-CV).
+
+The expected log predictive density (ELPD) difference was:
+
+ΔELPD = 31.7 in favour of the full model, with a standard error (SE) of 8.1.
+
+Since the ELPD difference is approximately four times larger than its standard error (Δ/SE ≈ 3.9), this indicates strong evidence that the full model provides substantially better out-of-sample predictive performance than the null model.
+
+In other words, including effluent_median_log as a predictor significantly improves the model’s ability to predict tested concentrations across studies.
 
 ```{r}
 loo_compare(loo(eff_concentration_mod_log, moment_match = TRUE), loo(eff_concentration_mod_null_log,  moment_match = TRUE))
 ```
 
-The model with effluent is much better
+The Bayes factor comparing the full model (including effluent_median_log) to the null model (excluding it) was approximately 2.25 × 10¹³, overwhelmingly favouring the full model.
+
+A Bayes factor (BF) this large indicates decisive evidence that the full model provides a better explanation of the data than the null model. In other words, the observed data are roughly 22 trillion times more likely under the full model than under the null.
+
+This provides exceptionally strong support for including effluent_median_log as a predictor of tested concentrations, reinforcing the conclusion from the LOO-CV comparison.
 
 ```{r}
 bayes_factor(eff_concentration_mod_log, eff_concentration_mod_null_log)
 ```
 
 
-The R2 value is very low.  
+The Bayesian R² for the full model (including effluent_median_log) was 0.108, with a 95% compatibility interval ranging from 0.070 to 0.150.
+
+This indicates that the model explains approximately 10.8% of the variance in tested concentrations across studies, with credible support for this value lying between 7.0% and 15.0%.
+
+While this represents a modest proportion of explained variance, it nonetheless reflects a meaningful improvement over the null model — especially when considered alongside the strong support from both the LOO-CV comparison and the Bayes factor. This suggests that effluent_median_log is an informative predictor, even if the overall model explains a limited portion of the variability, which may reflect substantial heterogeneity across studies. 
 
 ```{r}
 performance::r2_bayes(eff_concentration_mod_log, robust = FALSE, ci = 0.95)
 ```
 
-The mode roughly approximates the data 
+The model fits the marginal distribution of the response variable well.
 
-```{r}
+```{r, fig.height=5, fig.width=8}
 color_scheme_set("red")
-brms::pp_check(eff_concentration_mod_log, ndraws = 50, type = "ecdf_overlay")
+brms::pp_check(eff_concentration_mod_log, ndraws = 25, type = "dens_overlay")
+brms::pp_check(eff_concentration_mod_log, ndraws = 25, type = "ecdf_overlay")  
+y_rep <- posterior_predict(eff_concentration_mod_log, ndraws = 1000)
+y_obs <- eff_concentration_mod_log$data$value_log  # Replace with your actual response variable
+ppc_stat_2d(y = y_obs, yrep = y_rep, stat = c("median", "mad"))
+```
+
+
+Based on the diagnostic plots:(1) The residuals exhibit no major departures from randomness; (2) The Q-Q and density plots support the normality assumption of the residuals; (3) The absence of strong patterns in the autocorrelation and scale-location plots further suggests that the model is well-specified with homoscedastic and independent errors.
+
+```{r fig.height=8, fig.width=8}
+performance::check_model(eff_concentration_mod_log)
 ```
 
 Checking R-hat values to confirm model convergence and ESS fo estimates.   
 
 ```{r}
-print(summary(eff_concentration_mod_log, prob = 0.95)) #All Rhat = 1 (good).
+max_rhat <- max(rhat(eff_concentration_mod_log), na.rm = TRUE)
+print(glue::glue("All R-hat values ≤ {max_rhat}"))
+```   
+
+General model output
+
+```{r}
+print(summary(eff_concentration_mod_log, prob = 0.95))
 ```
 
 Diagnostic plots look fine. A smaller shape value indicates greater overdispersion (variance is much larger than the mean).  
@@ -826,10 +1151,6 @@ Diagnostic plots look fine. A smaller shape value indicates greater overdispersi
 ```{r}
 color_scheme_set("red")
 plot(eff_concentration_mod_log)
-```
-
-```{r fig.height=8, fig.width=8}
-performance::check_model(eff_concentration_mod_log)
 ```
 
 
@@ -844,11 +1165,13 @@ estimate_data_year_2 <- marginal_effects(eff_concentration_mod_log, effects = "r
 ```
 
 
-These estimated coefficients represent the average effects across the entire dataset, controlling for (not averaging over) the other variables in the model. Because this is a log–log model, the coefficient for `log(effluent_median`) reflects an elasticity: the percent change in the response (log(value)) for a percent change in the predictor (`log(effluent_median)`).
+These estimated coefficients represent the average effects across the dataset, controlling for (rather than averaging over) the other predictors in the model. Because the model is log–log for value_log and `effluent_median_log`, the coefficient for `log(effluent_median)` reflects an elasticity—that is, the percent change in the response for a percent change in the predictor.
 
-The estimated effect of `log(effluent_median)` was **β = 0.665** (95% CrI: 0.505 to 0.823), indicating that a **1% increase in effluent median concentration** is associated with an average **0.665% increase in tested concentration**. Since the credible interval does not include zero, this is a statistically meaningful effect.
+The estimated effect of `log(effluent_median)` was **β = 0.679 (95% CrI: 0.516 to 0.841)**, indicating that a **1% increase in effluent concentration is associated with an average 0.679% increase in tested concentration**, all else being equal. Since the 95% credible interval does not include zero, this effect is statistically well-supported.
 
-For relative_year, the estimated coefficient was **β = –0.130** (95% CrI: –0.189 to –0.070), suggesting a temporal decline in tested concentrations. Because the predictor is linear and the response is log-transformed, this indicates that each additional year is associated with an average **12.2% decrease in tested concentration, holding effluent concentration constant** (`exp(–0.130) ≈ 0.878`).
+The coefficient for `relative_year` was **β = –0.134 (95% CrI: –0.195 to –0.073)**, suggesting a consistent temporal decline in tested concentrations over time. As this predictor is linear while the response is log-transformed, this corresponds to an average **12.6% decrease** in tested concentration per year **(exp(–0.134) ≈ 0.874)**, holding other variables constant.
+
+The estimated effect of doses was **β = –0.080 (95% CrI: –0.242 to 0.084)**, suggesting a weak and uncertain negative association between the number of doses tested and the minimum reported concentration. However, the credible interval includes zero, indicating no strong evidence for an effect of doses in this model.
 
 
 ```{r}
@@ -865,13 +1188,29 @@ L95CI_year_2 <- model_summary_2$q2_5[3]
 H95CI_year_2 <- model_summary_2$q97_5[3]
 
 
-model_summary_2 %>% 
+model_summary_2_ft <- model_summary_2 %>% 
   dplyr::mutate(across(where(is.double), ~ round(.x, 3))) %>% 
-  gt()
+  dplyr::rename("predictor" = rowname) %>% 
+  dplyr::mutate(CrI = paste0(q2_5, " to ", q97_5)) %>% 
+  dplyr::select(predictor, estimate, CrI) %>% 
+  flextable() %>%
+  set_header_labels(
+    predictor = "Predictor",
+    estimate = "Estimate",
+    CrI = "95% CrI"
+  ) %>%
+  autofit()
+
+model_summary_2_ft
 ```
 
+Saving the table 
 
-##### Fig S3 (Fig 1b)
+```{r}
+save_as_docx(model_summary_2_ft, path = paste0(fig_wd, "./table-s3.docx"))
+```
+
+##### Fig 1b
 
 
 ```{r, fig.height=5, fig.width=6}
@@ -887,70 +1226,212 @@ x_coord <- text_coord %>% pull(x)
 
 
 fig_1b <- ggplot() +
-  geom_line(data = estimate_data_2, aes(x = effluent_median_log, y = estimate__), color = "#1c4595", linewidth = 1) +
-  geom_ribbon(data = estimate_data_2, aes(x = effluent_median_log, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
-  geom_point(data = wastewater_conc, aes(x = effluent_median_log, y = value_log), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
+  geom_line(
+    data = estimate_data_2,
+    aes(x = effluent_median_log, y = estimate__),
+    color = "#5B489D",
+    linewidth = 1
+  ) +
+  geom_ribbon(
+    data = estimate_data_2,
+    aes(x = effluent_median_log, ymin = lower__, ymax = upper__),
+    fill = "#5B489D",
+    alpha = 0.1
+  ) +
+  geom_point(
+    data = wastewater_conc,
+    aes(x = effluent_median_log, y = value_log),
+    alpha = 0.4,
+    shape = 21,
+    color = "#5B489D",
+    fill = "#5B489D"
+  ) +
   annotate(
     "text",
-    x = x_coord, 
-    y = y_coord, 
+    x = x_coord,
+    y = y_coord,
     label = paste0(
-      "Bayesian log-log Gaussian regression", "\n",
-      "Effect estimate: ", round(estimate_2, 3), "\n",
-      "CI: ", round(L95CI_2, 3), " - ", round(H95CI_2, 3)
+      "Bayesian log-log Gaussian regression",
+      "\n",
+      "Effect estimate: ",
+      round(estimate_2, 3),
+      "\n",
+      "95%CrI: ",
+      round(L95CI_2, 3),
+      " to ",
+      round(H95CI_2, 3)
     ),
-    hjust = 0, vjust = 1, size = 4
+    hjust = 0,
+    vjust = 1,
+    size = 4
   ) +
   labs(
-    title = "Test vs effluent concentrations",
-    x = "Log median effluent concentration",
-    y = "Log tested concentration"
+    title = "(B)  Wastewater vs exposure concentration",
+    x = "Exposure concentration (μg/L)*",
+    y = "Environmental concentration (μg/L)*",
+    caption = "*Values in μg/L space on a log scale"
   ) +
-  theme_clean() +
+  scale_y_continuous(
+    labels = function(x)
+      scales::label_scientific()(exp(x))
+  ) +
+  scale_x_continuous(
+    labels = function(x)
+      scales::label_scientific()(exp(x))
+  ) +
+  theme_few() +
   theme(
     legend.position = "bottom",
-    legend.justification = "center"
+    legend.justification = "center",
+    plot.caption      = element_text(
+      size   = 8,
+      hjust  = 0.5,
+      margin = margin(t = 6)
+    )
   )
-
-fig_1b 
+fig_1b
 ```
 
 Saving figure 
 
 ```{r}
-# ggsave(filename = paste0(fig_wd, "./figure-1b.pdf"),
-#        plot = fig_1b,
-#        width = 210,
-#        height = 297/1.5,  # Specify the height of the plot
-#        units = "mm")
+ggsave(filename = paste0(fig_wd, "./figure-1b.pdf"),
+       plot = fig_1b,
+       width = 210,
+       height = 297/1.5,  # Specify the height of the plot
+       units = "mm")
 ```
 
-Is this trend still present if the extreme concentration is removed. The compound is streptomycin (CAS: 57-92-1)   
+
+##### Fig S1b
+
+Plot surface water concentrations by year   
+
+
+```{r, fig.height=5, fig.width=6}
+text_coord <- wastewater_conc %>%
+  summarise(
+    y_max = max(value_log, na.rm = TRUE),
+    x_max = max(relative_year, na.rm = TRUE),
+    x_min = min(relative_year, na.rm = TRUE),
+    x_mean = mean(c(x_max, x_min))
+  )
+
+y_coord <- text_coord %>% pull(y_max)
+
+x_coord <- text_coord %>% pull(x_min)
+
+
+fig_s1b <- ggplot() +
+  geom_line(
+    data = estimate_data_year_2,
+    aes(x = relative_year, y = estimate__),
+    color = "#5B489D",
+    linewidth = 1
+  ) +
+  geom_ribbon(
+    data = estimate_data_year_2,
+    aes(x = relative_year, ymin = lower__, ymax = upper__),
+    fill = "#5B489D",
+    alpha = 0.1
+  ) +
+  geom_point(
+    data = wastewater_conc,
+    aes(x = relative_year, y = value_log),
+    alpha = 0.4,
+    shape = 21,
+    color = "#5B489D",
+    fill = "#5B489D"
+  ) +
+  annotate(
+    "text",
+    x = x_coord,
+    y = y_coord,
+    label = paste0(
+      "Bayesian log-log Gaussian regression",
+      "\n",
+      "Effect estimate: ",
+      round(estimate_year_2, 3),
+      "\n",
+      "95%CrI: ",
+      round(L95CI_year_2, 3),
+      " to ",
+      round(H95CI_year_2, 3)
+    ),
+    hjust = 0,
+    vjust = 1,
+    size = 4
+  ) +
+  labs(
+    title = "(B)  Exposure concentration vs year (wastewater compounds)",
+    x = "Year",
+    y = "Exposure concentration (μg/L)*",
+    caption = "*Concentration values in μg/L space on a log scale"
+  ) +
+  scale_y_continuous(
+    labels = function(x)
+      scales::label_scientific()(exp(x))
+  ) +
+  scale_x_continuous(
+    labels = function(x)
+      x + 1992
+  ) +
+theme_few() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center",
+    plot.caption = element_text(
+      size   = 8,
+      hjust  = 0.5,
+      margin = margin(t = 6)
+    )
+  )
+fig_s1b
+```
+
+Save this figure for the MS   
+
+```{r}
+ggsave(filename = paste0(fig_wd, "./figure-s1b.pdf"),
+       plot = fig_s1b,
+       width = 210,
+       height = 297/1.5,
+       units = "mm")
+```
+
+
+##### Outlier assemsent
+
+Is this trend still present if the extreme concentration is removed. The compound is streptomycin (CAS: 57-92-1)
 
 ```{r}
 wastewater_conc %>% 
   dplyr::arrange(desc(effluent_median_log)) %>% 
-  dplyr::slice(1)
+  dplyr::slice(1) %>% 
+  dplyr::select(compound_cas_corrected, compound_name_corrected, value) %>% 
+  flextable()
 ```
+
+###### Run model
 
 Building an identical model without streptomycin (outlier removed; or)
 
 ```{r}
-# options(brms.backend = "cmdstanr")
-# eff_concentration_mod_log_or <- brm(eff_concentration_str,
-#                data = wastewater_conc %>% 
-#                  dplyr::filter(compound_cas_corrected != "57-92-1"),
-#                cores = 4,
-#                chains = 4,
-#                #prior = mod_priors, #use defaults
-#                warmup = 1000,
-#                seed = 20250418,
-#                thin = 2,
-#                iter = 8000,
-#                control = list(max_treedepth = 20, adapt_delta = 0.95),
-#                save_pars = save_pars(all=TRUE),
-#                sample_prior = TRUE,
-#                file = paste0(mods_wd, './eff_concentration_mod_log_or'))
+options(brms.backend = "cmdstanr")
+eff_concentration_mod_log_or <- brm(eff_concentration_str,
+               data = wastewater_conc %>%
+                 dplyr::filter(compound_cas_corrected != "57-92-1"),
+               cores = 4,
+               chains = 4,
+               #prior = mod_priors, #use defaults
+               warmup = 1000,
+               seed = 20250418,
+               thin = 2,
+               iter = 8000,
+               control = list(max_treedepth = 20, adapt_delta = 0.95),
+               save_pars = save_pars(all=TRUE),
+               sample_prior = TRUE,
+               file = paste0(mods_wd, './eff_concentration_mod_log_or'))
 ```
 
 
@@ -960,65 +1441,33 @@ Reload the model if necessary.
 eff_concentration_mod_log_or <-  readRDS(file = paste0(mods_wd, "./eff_concentration_mod_log_or.rds"))
 ```
 
-
-Checking estimates   
+The effect of year seems robust to the outlier.  
 
 ```{r}
 model_summary_2_1 <-  as.data.frame(fixef(eff_concentration_mod_log_or, summary = TRUE)) %>% 
   rownames_to_column() %>% 
   clean_names()
 
-model_summary_2_1 %>% 
+table_i <- model_summary_2_1 %>% 
   dplyr::mutate(across(where(is.double), ~ round(.x, 3))) %>% 
-  gt()
+  dplyr::rename("predictor" = rowname) %>% 
+  dplyr::mutate(CrI = paste0(q2_5, " to ", q97_5)) %>% 
+  dplyr::select(predictor, estimate, CrI) %>% 
+  flextable() %>%
+  set_header_labels(
+    predictor = "Predictor",
+    estimate = "Estimate (outlier removed)",
+    CrI = "95% CrI (outlier removed)"
+  ) %>%
+  autofit()
+
+table_i
 ```
 
-##### Fig S4
-
-Plot surface water concentrations by year   
-
-```{r}
-text_coord <- wastewater_conc %>% 
-  summarise(y_max = max(value_log, na.rm = TRUE),
-            x_max = max(relative_year, na.rm = TRUE),
-            x_min = min(relative_year, na.rm = TRUE),
-            x_mean = mean(c(x_max,x_min)))
-
-y_coord <- text_coord %>% pull(y_max)
-
-x_coord <- text_coord %>% pull(x_min)
 
 
-fig_s4 <- ggplot() +
-  geom_line(data = estimate_data_year_2, aes(x = relative_year, y = estimate__), color = "#1c4595", linewidth = 1) +
-  geom_ribbon(data = estimate_data_year_2, aes(x = relative_year, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
-  geom_point(data = wastewater_conc, aes(x = relative_year, y = value_log), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
-  annotate(
-    "text",
-    x = x_coord, 
-    y = y_coord, 
-    label = paste0(
-      "Bayesian log-log Gaussian regression", "\n",
-      "Effect estimate: ", round(estimate_year_2, 3), "\n",
-      "CI: ", round(L95CI_year_2, 3), " - ", round(H95CI_year_2, 3)
-    ),
-    hjust = 0, vjust = 1, size = 4
-  ) +
-  labs(
-    title = "Test concentrations over time",
-    x = "Publication year",
-    y = "Log tested concentration"
-  ) +
-  theme_clean() +
-  theme(
-    legend.position = "bottom",
-    legend.justification = "center"
-  )
 
-fig_s4
-```
-
-## Concentration fold differences
+### 📈 Concentration fold differences
 
 Here we are summarising how many test were below the median surface water and effluent concentrations as well as the upper 95%CI. We are also calculating the mean-fold difference in concentrations.
 
@@ -1057,46 +1506,50 @@ conc_summary_overall <- all_databases_with_sum %>%
 
 #### Results
 
-For the 167 compounds that were present in the EIPAAB database and environmental detections (in UBA, NORMAN, or Wilkson) representing 767 tests, only 18.70% and 37.96% employed test concentrations lower then median and upper 95% credible interval of surface water concentrations, respectively (Table S5). Further, only 23.39% and 53.08% employed test concentrations lower then median and upper 95% credible interval of wastewater effluent (Table S5). On average, concentrations used in behavioural ecotoxicology were 43 times higher then median surf water concentrations, and 10 times higher then those in effluent. 
-
-
-##### Table S2
-
-This is called Table 2 in the manuscript 
-
-**Table 2:** The number of exposures in the EIPAAB database that used concentrations less then median and upper 95% credible interval of surface water and effluent concentrations
+For the 706 exposures to compounds with surface water detections (in UBA, NORMAN, or Wilkson), only 18.70% and 37.96% employed test concentrations lower then median and upper 95% credible interval of surface water concentrations, respectively. Further, for the 714 exposures to compounds with wastewater detections, only 23.39% and 53.08% employed test concentrations lower then median and upper 95% credible interval of wastewater. On average, concentrations used in behavioural ecotoxicology were 43 times higher then median surf water concentrations, and 10 times higher then those in effluent. 
 
 ```{r}
 surf <- conc_summary_overall %>% 
   dplyr::mutate(fdiff_med_sw = round(fdiff_med_sw,2),
                 fdiff_hci_sw = round(fdiff_hci_sw)) %>% 
-  dplyr::select(n_sw, less_med_sw, less_hci_sw, fdiff_med_sw, fdiff_hci_sw, percent_less_med_sw, percent_less_hic_sw) %>% 
-  dplyr::rename(total_n = n_sw, less_med = less_med_sw, less_hci = less_hci_sw, fdiff_med = fdiff_med_sw, fdiff_hci = fdiff_hci_sw, percent_less_med = percent_less_med_sw, percent_less_hic = percent_less_hic_sw) %>% 
+  dplyr::select(n_sw, less_med_sw, less_hci_sw, fdiff_med_sw, fdiff_hci_sw, percent_less_med_sw, percent_less_hic_sw, n_compounds_sw) %>% 
+  dplyr::rename(total_n = n_sw, less_med = less_med_sw, less_hci = less_hci_sw, fdiff_med = fdiff_med_sw, fdiff_hci = fdiff_hci_sw, percent_less_med = percent_less_med_sw, percent_less_hic = percent_less_hic_sw, compounds = n_compounds_sw) %>% 
   dplyr::mutate(matrix = "Surface water")
 
 effluent <- conc_summary_overall %>% 
     dplyr::mutate(fdiff_med_ef = round(fdiff_med_ef, 2),
                 fdiff_hci_ef = round(fdiff_hci_ef, 2)) %>% 
-  dplyr::select(n_ef, less_med_ef, less_hci_ef, fdiff_med_ef, fdiff_hci_ef, percent_less_med_ef, percent_less_hic_ef) %>% 
-  dplyr::rename(total_n = n_ef, less_med = less_med_ef, less_hci = less_hci_ef, fdiff_med = fdiff_med_ef, fdiff_hci = fdiff_hci_ef, percent_less_med = percent_less_med_ef, percent_less_hic = percent_less_hic_ef) %>% 
+  dplyr::select(n_ef, less_med_ef, less_hci_ef, fdiff_med_ef, fdiff_hci_ef, percent_less_med_ef, percent_less_hic_ef, n_compounds_ef) %>% 
+  dplyr::rename(total_n = n_ef, less_med = less_med_ef, less_hci = less_hci_ef, fdiff_med = fdiff_med_ef, fdiff_hci = fdiff_hci_ef, percent_less_med = percent_less_med_ef, percent_less_hic = percent_less_hic_ef, compounds = n_compounds_ef) %>% 
   dplyr::mutate(matrix = "Effluent")
 
-table_3 <- rbind(surf, effluent) %>% 
+overall_summary_table <- rbind(surf, effluent) %>% 
   dplyr::select(matrix, everything()) %>% 
-  dplyr::mutate(percent_less_med = round(percent_less_med, 2),
-                percent_less_hic = round(percent_less_hic, 2)) %>% 
-  dplyr::rename(Matrix = matrix, 'Total tests' = total_n, 'Dose less than median' = less_med, 'Dose less than upper 95%CI' = less_hci, "Mean-fold differene from median" = fdiff_med, "Mean-fold differene from upper 95%CI" = fdiff_hci, 'Percent less than median (%)' = percent_less_med, 'Percent less than upper 95%CI (%)' = percent_less_hic) %>% 
-  gt() %>% 
-  fmt_number(
-    columns = 'Total tests', 
-    decimals = 0
+  dplyr::mutate(
+    percent_less_med = round(percent_less_med, 2),
+    percent_less_hic = round(percent_less_hic, 2)
   ) %>% 
-  cols_align(
-    align = "center", 
-    columns = everything()
-  )
+  dplyr::rename(
+    Matrix = matrix,
+    `Total tests` = total_n,
+    `Total compounds` = compounds,
+    `Dose less than median` = less_med,
+    `Dose less than upper 95%CrI` = less_hci,
+    `Mean-fold difference from median` = fdiff_med,
+    `Mean-fold difference from upper 95%CrI` = fdiff_hci,
+    `Percent less than median (%)` = percent_less_med,
+    `Percent less than upper 95%CrI (%)` = percent_less_hic
+  ) %>%
+  flextable() %>%
+  colformat_num(j = "Total tests", digits = 0) %>%  # Format total tests as whole numbers
+  align(align = "center", part = "all") %>%
+  autofit()
 
-table_3
+overall_summary_table
+```
+
+```{r}
+save_as_docx(overall_summary_table, path = paste0(fig_wd, "./table-s6-1.docx"))
 ```
 
 
@@ -1131,9 +1584,14 @@ under_levels <- all_databases_with_sum %>%
   dplyr::mutate(across(everything(), ~ ifelse(is.nan(.), NA, .)))
 ```
 
+
+```{r}
+under_levels
+```
+
 #### Surface water
 
-##### Fig S5 (Fig 2)
+##### Fig 2
 
 Lets plot the mean-fold difference Building the plot in two halves so that it can fit in our manuscript   
 
@@ -1237,7 +1695,7 @@ plot_right <- plot_sw_data_right %>%
 ```
 
 
-**Fig 2a.** The median fold difference in tested concentrations in EIPAAB and median surface water concentration (i.e. tested dose / median surface water concentration) 
+**Fig 2** The median fold difference in tested concentrations in EIPAAB and median surface water concentration (i.e. tested dose / median surface water concentration) 
 
 ```{r, fig.height=9, fig.width=5}
 plot_left
@@ -1254,19 +1712,24 @@ plot_right
 Save the figure
 
 ```{r}
-# invisible(fig_2 <- plot_left | plot_right)
-# ggsave(filename = paste0(fig_wd, "./figure-2.pdf"), 
-#        plot = fig_2,
-#        width = 210,
-#        height = 297/1.25,  # Specify the height of the plot
-#        units = "mm")
+invisible(fig_2 <- plot_left | plot_right)
+ggsave(filename = paste0(fig_wd, "./figure-2.pdf"),
+       plot = fig_2,
+       width = 210,
+       height = 297/1.25,  # Specify the height of the plot
+       units = "mm")
 ```
 
+For surface waters there were 139 compounds 
+
+```{r}
+nrow(plot_sw_data)
+```
 
 
 #### Waste water 
 
-##### Fig S6
+##### Fig S2
 
 Let's plot mean-fold difference fo effluent    
 
@@ -1361,7 +1824,7 @@ plot_right <- plot_ef_data_right %>%
   )
 ```
 
-**Fig S6**: The median fold difference in tested concentrations in EIPAAB and median waste water concentration (i.e. tested dose / median waste water concentration) 
+**Fig S2**: The median fold difference in tested concentrations in EIPAAB and median waste water concentration (i.e. tested dose / median waste water concentration) 
 
 ```{r, fig.height=9, fig.width=5}
 plot_left
@@ -1379,21 +1842,19 @@ plot_right
 Save the figure
 
 ```{r}
-# invisible(fig_S6 <- plot_left | plot_right)
-# ggsave(filename = paste0(fig_wd, "./figure-S5.pdf"), 
-#        plot = fig_S5,
-#        width = 210/2,
-#        height = 297,  # Specify the height of the plot
-#        units = "mm")
+invisible(fig_s2 <- plot_left | plot_right)
+ggsave(filename = paste0(fig_wd, "./figure-s2.pdf"),
+       plot = fig_s2,
+       width = 210,
+       height = 297/1.25,
+       units = "mm")
 ```
 
-
+### Summary table
 
 Looking at the number of compounds in the database that have data at concentrations below median and upper 95 CI
 
-##### Table S3
-
-**Table S3:** The percentage of compounds in the EIPAAB database that have data at concentrations less then median and upper 95% credible interval of surface water and effluent concentrations
+The percentage of compounds in the EIPAAB database that have data at concentrations less then median and upper 95% credible interval of surface water and wastewater concentrations
 
 ```{r}
 compound_sum_table_surf <- under_levels %>% 
@@ -1408,7 +1869,7 @@ compound_sum_table_surf <- under_levels %>%
   dplyr::mutate(Matrix = "Surface water") %>% 
   dplyr::select(Matrix,  "Percent with no data under median concentration", "Percent with no data under upper 95 CI concentration")
 
-compound_sum_table_eff <- under_levels %>% 
+compound_sum_table_waste <- under_levels %>% 
   dplyr::reframe(total_compounds =  sum(!is.na(prop_less_med_ef)),
                  count_less_med_ef = sum(prop_less_med_ef == 0, na.rm = TRUE),
                  count_less_hic_ef = sum(prop_less_hic_ef == 0, na.rm = TRUE),
@@ -1417,10 +1878,10 @@ compound_sum_table_eff <- under_levels %>%
                  "Percent with no data under median concentration" = paste0(round(percent_less_med_ef, 2), "%", " (", count_less_med_ef, " of ", total_compounds, ")"),
                  "Percent with no data under upper 95 CI concentration" = paste0(round(percent_less_hic_ef, 2), "%", " (", count_less_hic_ef, " of ", total_compounds, ")")
                  ) %>% 
-  dplyr::mutate(Matrix = "Effluent") %>% 
+  dplyr::mutate(Matrix = "Wastewater") %>% 
   dplyr::select(Matrix,  "Percent with no data under median concentration", "Percent with no data under upper 95 CI concentration")
 
-compound_sum_table <-  rbind(compound_sum_table_surf, compound_sum_table_eff)
+compound_sum_table <-  rbind(compound_sum_table_surf, compound_sum_table_waste)
 
 compound_sum_table %>% 
   gt() %>% 
@@ -1433,6 +1894,7 @@ compound_sum_table %>%
     columns = everything()
   )
 ```
+
 
 ## Occurance
 
@@ -1459,7 +1921,7 @@ all_surfacewater <- all_databases %>%
   )
 ```
 
-There's a total of 1654 compounds in this surface water summary   
+There's a total of 1650 compounds in this surface water summary   
 
 
 ```{r}
@@ -1487,9 +1949,11 @@ eipaab_counts <- all_databases %>%
 
 Combining the data together to make 📊 **test_surfacewater**   
 
+
 ```{r}
 test_surfacewater <- left_join(all_surfacewater, eipaab_counts, by = "compound_name_corrected") %>% 
   dplyr::mutate(rank_samples_dif = eipaab_rank-combind_rank_samples,
+                rank_samples_dif = if_else(is.na(eipaab_n), NA,  rank_samples_dif),
                 rank_detection_dif = eipaab_rank-combind_rank_detection,
                 rank_detection_percent_dif = eipaab_rank-combind_rank_detection_percent
                 ) %>% 
@@ -1526,300 +1990,61 @@ print(paste0("The max rank in terms of the number of occurrences is ", uba_rank_
 ```
 
 
-#### Table S4
-
 The 10 most common compounds in EIPAAB versus occurrence and detection frequency in UBA surface waters
 UBA samples.  
 
 ```{r}
-test_surfacewater %>% 
-  dplyr::arrange(desc(eipaab_n)) %>% 
-  dplyr::slice(1:10) %>% 
-  dplyr::mutate(compound_name = sentence_case(compound_name_corrected),
-                combind_percent_detection = round(combind_percent_detection,2)) %>% 
-  dplyr::select(compound_name, eipaab_n, combind_samples, combind_detection, combind_percent_detection, eipaab_rank, combind_rank_detection, combind_rank_detection_percent) %>% 
-  dplyr::rename(Name = compound_name, "EIPAAB tests" = eipaab_n, "Environmental samples" = combind_samples, "All detections" = combind_detection, "Precent single detections" = combind_percent_detection, "EIPAAB rank (1–870)" = eipaab_rank,
-                "Rank total detections (1–1654)" = combind_rank_detection, "Rank  percent detections (1–1428)*" = combind_rank_detection_percent) %>% 
-  gt() %>% 
-    fmt_number(
-    columns = c("Environmental samples", "All detections"), 
-    decimals = 0
-    ) %>% 
-  cols_align(
-    align = "center", 
-    columns = everything()
-  )
+table_top_surfacewater <- test_surfacewater %>%
+  arrange(desc(eipaab_n)) %>%
+  slice(1:10) %>%
+  mutate(
+    compound_name = sentence_case(compound_name_corrected),
+    combind_percent_detection = round(combind_percent_detection, 2)
+  ) %>%
+  select(
+    compound_name, eipaab_n, combind_samples, combind_detection,
+    combind_percent_detection, eipaab_rank, combind_rank_detection,
+    combind_rank_detection_percent
+  ) %>%
+  rename(
+    Name = compound_name,
+    `EIPAAB tests` = eipaab_n,
+    `Environmental samples` = combind_samples,
+    `All detections` = combind_detection,
+    `Precent single detections` = combind_percent_detection,
+    `EIPAAB rank (1–870)` = eipaab_rank,
+    `Rank total detections (1–1654)` = combind_rank_detection,
+    `Rank  percent detections (1–1428)*` = combind_rank_detection_percent
+  ) %>%
+  flextable() %>%
+  colformat_num(j = c("Environmental samples", "All detections"), digits = 0) %>%
+  align(align = "center", part = "all") %>%
+  autofit()
+
+table_top_surfacewater
 ```
 
 *Note: the rank for total percentage detections does not range from 1 to the number of compounds (i.e. 1–1428) because percentage detections were only calculated where the number of single samples are greater than ten*   
 
-#### Fig S7
-
-There's massive skew in occurrence for specific compounds in both the UBA and EIPAAB database, in terms of modelling it, there is likely going to be issues with overdispersion. We will use a negative binomial distribution.  
-
-```{r, fig.height=5, fig.width=6}
-max_rank <-  test_surfacewater %>% 
-  dplyr::filter(!is.na(eipaab_n) & !is.na(rank_detection_dif)) %>% 
-  dplyr::summarise(max = max(rank_detection_dif)) %>% 
-  pull(max)
-
-max_rank_5 <-  max_rank-5
-
-fig_s7 <- test_surfacewater %>% 
-  dplyr::filter(!is.na(eipaab_n)  & !is.na(rank_detection_dif)) %>% 
-  dplyr::arrange(rank_detection_dif) %>% 
-  dplyr::mutate(is_top5 = rank_detection_dif %in% 1:5) %>% 
-  ggplot() +
-  geom_point(aes(x = combind_detection, y = eipaab_n, size = combind_samples), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
-  geom_text_repel(
-    data = test_surfacewater %>% filter(!is.na(eipaab_n)  & !is.na(rank_detection_dif) & rank_detection_dif %in% 1:5),
-    aes(x = combind_detection, y = eipaab_n, label = compound_name_corrected), colour = "red",
-    size = 3, box.padding = 0.7, min.segment.length = 0, hjust = 0, vjust = 5
-  ) +
-   geom_text_repel(
-    data = test_surfacewater %>% filter(!is.na(eipaab_n) & !is.na(rank_detection_dif) & rank_detection_dif %in% max_rank_5:max_rank),
-    aes(x = combind_percent_detection, y = eipaab_n, label = compound_name_corrected), colour = "green",
-    size = 3, box.padding = 0.7, min.segment.length = 0, hjust = 0, vjust = 5
-  ) +
-  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
-  scale_colour_manual(
-    values = c("TRUE" = "#01080A", "FALSE" = "#01080A"), 
-    guide = "none"
-  ) +
-  labs(
-    title = "Tests vs detection frequency",
-    x = "Detections in Environmental Databases",
-    y = "Occurrence in EIPAAB",
-    size = "Number of samples"
-  ) +
-  theme_clean() +
-  theme(
-    legend.position = "bottom",
-    legend.justification = "center"
-  )
-
-fig_s7
-```
-
-***Note:*** *the size of the points represents the total number of samples in the environmental databases. The five marked points represent those that are under represented in EIPAAB given the number of detections (i.e. rank EIPAAB - rank environmental detections).*  
-
-#### Fig S8
-
-There's massive skew in occurrence for specific compounds in both the UBA and EIPAAB database, in terms of modelling it, there is likely going to be issues with overdispersion. We will use a negative binomial distribution.  
-
-```{r, fig.height=5, fig.width=6}
-max_rank <-  test_surfacewater %>% 
-  dplyr::filter(!is.na(eipaab_n)& !is.na(combind_percent_detection)) %>% 
-  dplyr::summarise(max = max(rank_detection_percent_dif)) %>% 
-  pull(max)
-
-max_rank_5 <-  max_rank-5
-           
-
-fig_s8 <- test_surfacewater %>% 
-  dplyr::filter(!is.na(eipaab_n) & !is.na(combind_percent_detection)) %>% 
-  dplyr::arrange(rank_detection_percent_dif) %>% 
-  dplyr::mutate(is_top5 = rank_detection_percent_dif %in% 1:5) %>% 
-  ggplot() +
-  geom_point(aes(x = combind_percent_detection, y = eipaab_n, size = combind_samples), alpha = 0.4, shape = 21, color = "#01080A", fill = "#FBBC42") +
-  geom_text_repel(
-    data = test_surfacewater %>% filter(!is.na(eipaab_n & !is.na(combind_percent_detection)), rank_detection_percent_dif %in% 1:5),
-    aes(x = combind_percent_detection, y = eipaab_n, label = compound_name_corrected), colour = "red",
-    size = 3, box.padding = 0.7, min.segment.length = 0, hjust = 0, vjust = 5
-  ) +
-  geom_text_repel(
-    data = test_surfacewater %>% filter(!is.na(eipaab_n & !is.na(combind_percent_detection)), rank_detection_percent_dif %in% max_rank_5:max_rank),
-    aes(x = combind_percent_detection, y = eipaab_n, label = compound_name_corrected), colour = "green",
-    size = 3, box.padding = 0.7, min.segment.length = 0, hjust = 0, vjust = 5
-  ) +
-  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
-  scale_colour_manual(
-    values = c("TRUE" = "#01080A", "FALSE" = "#01080A"), 
-    guide = "none"
-  ) +
-  labs(
-    title = "Tests vs percentage of detections",
-    x = "Percent Detections in Environmental Databases",
-    y = "Occurrence in EIPAAB",
-    size = "Number of samples"
-  ) +
-  theme_clean() +
-  theme(
-    legend.position = "bottom",
-    legend.justification = "center"
-  )
-
-fig_s8
-```
-
-***Note:*** *the size of the points represents the total number of samples in the environmental databases. The five marked points represent those that are under represented in EIPAAB given the percentage of positive detections (i.e. rank EIPAAB - rank environmental detections).*  
-
-
-### Temporal trends data
-
-Here we will look at general temporal trends using the EIPAAB, UBA and NORMAN data.  
+Saving the table 
 
 ```{r}
-temporal_trends <- all_databases %>% 
-  dplyr::filter(source != "wilkson") %>% 
-  dplyr::mutate(group_type = if_else(source == "eipaab", "test", "environmental")) %>% 
-  dplyr::group_by(group_type, year) %>% 
-  dplyr::reframe(
-    n_samples = sum(n_units_est, na.rm = TRUE),
-    n_compounds = length(unique(compound_name_corrected)),
-    rel_compounds = n_compounds / n_samples,
-    compound_list = list(unique(compound_name_corrected))
-  ) %>% 
-  tidyr::complete(group_type, year) %>% 
-  dplyr::filter(!is.na(year)) %>% 
-  dplyr::group_by(group_type) %>% 
-  dplyr::mutate(compound_list = purrr::map(compound_list, ~ if (is.null(.x)) character(0) else .x),
-                 cumulative_compounds = purrr::accumulate(compound_list, ~ union(.x, .y)) %>% 
-                             purrr::map_int(length),
-                n_samples_z = scale(n_samples)) %>% 
-  dplyr::ungroup()
+save_as_docx(table_top_surfacewater, path = paste0(fig_wd, "./table-S7.docx"))
 ```
 
-
-#### Fig S9
-
-Let's look at the total number of samples per year in these combined databases   
-
-```{r, fig.height=5, fig.width=8}
-fig_s9 <- temporal_trends %>% 
-  #dplyr::filter(year > 1999 & year < 2021) %>% 
-  ggplot(aes(x = year, y = n_samples)) +
-  geom_point(alpha = 0.5) +
-  facet_wrap(~group_type, scales = "free",
-             labeller = labeller(group_type = c(
-               "environmental" = "Environmental data",
-               "test" = "Behavioural ecotoxicology data")) 
-             ) +
-    labs(
-    title = "Data over time",
-    x = "Year",
-    y = "Sampling effort (tests or water samples)"
-    ) +
-  theme_clean() +
-  theme(
-    legend.position = "bottom",
-    legend.justification = "center"
-  )
-
-fig_s9
-```
-
-For a clearer temporal trend we look within the NORMAN and UBA-PHAMA databases separately. 
-
-Making a new dataset just for NORMAN EMPODAT and PHARMS-UBA database   
-
-```{r}
-uba_norman_temporal_trends <- all_databases %>% 
-  dplyr::filter(source == "uba" | source == "norman") %>% 
-  dplyr::group_by(source, year) %>% 
-  dplyr::reframe(
-    n_samples = sum(n_units_est, na.rm = TRUE),
-    n_compounds = length(unique(compound_name_corrected)),
-    rel_compounds = n_compounds / n_samples,
-    compound_list = list(unique(compound_name_corrected))
-  ) %>% 
-  tidyr::complete(source, year) %>% 
-  dplyr::filter(!is.na(year)) %>% 
-  dplyr::group_by(source) %>% 
-  dplyr::mutate(compound_list = purrr::map(compound_list, ~ if (is.null(.x)) character(0) else .x),
-                 cumulative_compounds = purrr::accumulate(compound_list, ~ union(.x, .y)) %>% 
-                             purrr::map_int(length),
-                n_samples_z = scale(n_samples)) %>% 
-  dplyr::ungroup()
-```
-
-#### Fig S10
-
-```{r}
-fig_s10 <- uba_norman_temporal_trends %>% 
-  #dplyr::filter(year > 1999 & year < 2021) %>% 
-  ggplot(aes(x = year, y = n_samples)) +
-  geom_point(alpha = 0.5) +
-  facet_wrap(~source, scales = "free",
-             labeller = labeller(source = c(
-               "uba" = "PHARMS-UBA database",
-               "norman" = "NORMAN EMPODAT database")) 
-             ) +
-    labs(
-    title = "Data over time",
-    x = "Year",
-    y = "Sampling effort"
-    ) +
-  theme_clean() +
-  theme(
-    legend.position = "bottom",
-    legend.justification = "center"
-  )
-
-fig_s10
-```
-
-#### Fig S11
-
-Now the cumulative number of compounds over time.  
-
-```{r, fig.height=5, fig.width=8}
-fig_s11 <- temporal_trends %>% 
-  #dplyr::filter(year > 1999 & year < 2021) %>% 
-  ggplot(aes(x = year, y = cumulative_compounds, size = n_samples_z)) +
-  geom_point(alpha = 0.5) +
-  facet_wrap(~group_type, scales = "free",
-             labeller = labeller(group_type = c(
-               "environmental" = "Environmental data",
-               "test" = "Behavioural ecotoxicology data")) 
-             ) +
-    labs(
-    title = "Cummulative compounds",
-    x = "Year",
-    y = "Total number of compounds",
-    size = "Sample effort (scaled)"
-    ) +
-  theme_clean() +
-  theme(
-    legend.position = "bottom",
-    legend.justification = "center"
-  )
-
-fig_s11
-```
-
-
-
-```{r, fig.height=5, fig.width=8}
-uba_norman_temporal_trends %>% 
-  #dplyr::filter(year > 1999 & year < 2021) %>% 
-  ggplot(aes(x = year, y = cumulative_compounds, size = n_samples_z)) +
-  geom_point(alpha = 0.5) +
-  facet_wrap(~source, scales = "free",
-             labeller = labeller(source = c(
-               "uba" = "PHARMS-UBA database",
-               "norman" = "NORMAN EMPODAT database")) 
-             ) +
-    labs(
-    title = "Cummulative compounds",
-    x = "Year",
-    y = "Total number of compounds",
-    size = "Sample effort (scaled)"
-    ) +
-  theme_clean() +
-  theme(
-    legend.position = "bottom",
-    legend.justification = "center"
-  )
-```
-
-## Modeling
+### Modeling
 
 ### Total occruance 
 
 Here we will build a simple Bayesian negative binomial (log-link) regression model to look at the relationship between the two parameters. 
 
 #### Model structure
+
+```{r}
+test_surfacewater %>% 
+  dplyr::filter(!is.na(eipaab_n))
+```
+
 
 ```{r}
 detection_negbin_str <- bf(eipaab_n ~ combind_detection,
@@ -1832,24 +2057,29 @@ These are the default priors.
 suppressWarnings(get_prior(detection_negbin_str, data = test_surfacewater, family = negbinomial()))
 ```
 
+#### Run model
+
 Run model. This has been hashed out as I have saved the model, and will re-load it instead of re-running it. 
 
 ```{r}
-# detection_negbin_mod <- brm(detection_negbin_str,
-#                data = test_surfacewater,
-#                cores = 4,
-#                chains = 4,
-#                #prior = mod_priors, #use defaults
-#                warmup = 1000,
-#                seed = 20250418,
-#                thin = 2,
-#                iter = 8000,
-#                control = list(max_treedepth = 20, adapt_delta = 0.9999),
-#                save_pars = save_pars(all=TRUE),
-#                sample_prior = TRUE,
-#                file = paste0(mods_wd, './detection_negbin_mod'))
-# print("Model complete")
+options(brms.backend = "cmdstanr")
+detection_negbin_mod <- brm(
+  detection_negbin_str,
+  data = test_surfacewater,
+  cores = 4,
+  chains = 4,
+  #prior = mod_priors, #use defaults
+  warmup = 1000,
+  seed = 20250418,
+  thin = 2,
+  iter = 8000,
+  control = list(max_treedepth = 20, adapt_delta = 0.95),
+  save_pars = save_pars(all = TRUE),
+  sample_prior = TRUE,
+  file = paste0(mods_wd, './detection_negbin_mod')
+)
 ```
+
 
 #### Re-load models
 
@@ -1893,25 +2123,109 @@ plot(detection_negbin_mod)
 Pulling the conditional effect estimates from the model. The estimate corresponds to the effect of the predictor on the log of the expected response variable. A 1-unit increase (i.e. 1 detection) in the number of environmental detections increases the expected occurrence in EIPAAB database by 0.011% (i.e. (exp(0.0001105696)-1)×100 = 0.01105757). In other words, for each 1000 detections we would expect a 5% increase in test in the EIPAAB database.  
 
 ```{r}
-# Extract estimates
-esitmates_1 <- conditional_effects(detection_negbin_mod)
-estimate_data_1 <- esitmates_1$combind_detection
+esitmates_3 <- conditional_effects(detection_negbin_mod)
+estimate_data_3 <- esitmates_3$combind_detection
 
-# Extract the summary as a data frame
-model_summary_1 <- as.data.frame(summary(detection_negbin_mod, prob = 0.95)$fixed) %>% 
+model_summary_3 <-  as.data.frame(fixef(detection_negbin_mod, summary = TRUE)) %>% 
   rownames_to_column() %>% 
   clean_names()
 
-estimate_1 <- model_summary_1$estimate[2]
-L95CI_1 <- model_summary_1$l_95_percent_ci[2]
-H95CI_1 <- model_summary_1$u_95_percent_ci[2]
-estimate_percent_1 <- (exp(estimate_1)-1)*100
-L95CI_percent_1 <- (exp(L95CI_1)-1)*100
-H95CI_percent_1 <- (exp(H95CI_1)-1)*100
+estimate_3 <- model_summary_3$estimate[2]
+L95CI_3 <- model_summary_3$q2_5[2]
+H95CI_3 <- model_summary_3$q97_5[2]
+estimate_percent_3 <- (exp(estimate_3)-1)*100
+L95CI_percent_3 <- (exp(L95CI_3)-1)*100
+H95CI_percent_3 <- (exp(H95CI_3)-1)*100
 
-model_summary_1 %>% 
-  gt()
+model_summary_3_ft <- model_summary_3 %>% 
+  dplyr::mutate(across(where(is.double), ~ round(.x, 5))) %>% 
+  dplyr::rename("predictor" = rowname) %>% 
+  dplyr::mutate(CrI = paste0(q2_5, " to ", q97_5)) %>% 
+  dplyr::select(predictor, estimate, CrI) %>% 
+  flextable() %>%
+  set_header_labels(
+    predictor = "Predictor",
+    estimate = "Estimate",
+    CrI = "95% CrI"
+  ) %>%
+  autofit()
+
+model_summary_3_ft
 ```
+
+
+```{r}
+test_surfacewater %>% 
+  filter(!is.na(eipaab_n)) %>%  
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::arrange(desc(compound_name_corrected))
+```
+
+
+##### Fig S3a
+
+Each pharmaceutical occurrence in the behavioural database plotted against the number of positive detections in the environmental databases. The five compounds highlighted represent those that are currently underrepresented in the behaviour test database based on their rank detections (i.e. rank occurrence in behaviour test databases vs rank detections). The point size represents the total number of samples across all environmental databases. 
+
+```{r, fig.height=5, fig.width=6}
+text_coord <- test_surfacewater %>% 
+  filter(!is.na(eipaab_n)) %>% 
+  summarise(x = max(combind_detection, na.rm = TRUE)/2,
+            y = max(eipaab_n, na.rm = TRUE))
+
+y_coord <- text_coord %>% pull(y)
+
+x_coord <- text_coord %>% pull(x)
+
+
+fig_s3a <- ggplot() +
+  geom_line(data = estimate_data_3, aes(x = combind_detection, y = estimate__), color = "#E01F33", linewidth = 1) +
+  geom_ribbon(data = estimate_data_3, aes(x = combind_detection, ymin = lower__, ymax = upper__), fill = "#E01F33", alpha = 0.1) +
+  geom_point(data = test_surfacewater %>% filter(!is.na(eipaab_n)), aes(x = combind_detection, y = eipaab_n, size = combind_samples), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E01F33") +
+  annotate(
+    "text",
+    x = x_coord, 
+    y = y_coord, 
+    label = paste0(
+      "Bayesian negative binomial regression", "\n",
+      "Effect estimate: ", round(estimate_percent_3, 3), "\n",
+      "95%CrI: ", round(L95CI_percent_3, 3), " to ", round(H95CI_percent_3, 3)),
+    hjust = 0, vjust = 1, size = 4
+  ) +
+  geom_text_repel(
+    data = test_surfacewater %>% filter(!is.na(eipaab_n), rank_detection_dif %in% 1:5),
+    aes(x = combind_detection, y = eipaab_n, label = compound_name_corrected), size = 3, box.padding = 0.7
+  ) +
+  # Adjust scales
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
+  scale_colour_manual(
+    values = c("TRUE" = "#01080A", "FALSE" = "#01080A"), guide = "none"
+    ) +
+  labs(
+    title = "Test vs environmental detections",
+    x = "Total detections in environmental databases",
+    y = "Occurrence in behavioural database",
+    fill = "Number of surface water samples",
+    size = "Number of surface water samples"
+  ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+
+fig_s3a
+```
+
+This code saves the figure above as PDF.  
+
+```{r}
+ggsave(filename = paste0(fig_wd, "./figure-s3a.pdf"),
+       plot = fig_s3a,
+       width = 210,
+       height = 297/1.5,  # Specify the height of the plot
+       units = "mm")
+```
+
 
 ### Percentage detections
 
@@ -1922,24 +2236,30 @@ percent_detection_negbin_str <- bf(eipaab_n ~ combind_percent_detection,
                family = negbinomial())
 ```
 
+
+#### Run model
+
 Run model. This has been hashed out as I have saved the model, and will re-load it instead of re-running it. 
 
 ```{r}
-# percent_detection_negbin_mod <- brm(percent_detection_negbin_str,
-#                data = test_surfacewater,
-#                cores = 4,
-#                chains = 4,
-#                #prior = mod_priors, #use defaults
-#                warmup = 1000,
-#                seed = 20250418,
-#                thin = 2,
-#                iter = 8000,
-#                control = list(max_treedepth = 20, adapt_delta = 0.9999),
-#                save_pars = save_pars(all=TRUE),
-#                sample_prior = TRUE,
-#                file = paste0(mods_wd, './percent_detection_negbin_mod'))
-# print("Model complete")
+options(brms.backend = "cmdstanr")
+percent_detection_negbin_mod <- brm(
+  percent_detection_negbin_str,
+  data = test_surfacewater,
+  cores = 4,
+  chains = 4,
+  #prior = mod_priors, #use defaults
+  warmup = 1000,
+  seed = 20250418,
+  thin = 2,
+  iter = 8000,
+  control = list(max_treedepth = 20, adapt_delta = 0.95),
+  save_pars = save_pars(all = TRUE),
+  sample_prior = TRUE,
+  file = paste0(mods_wd, './percent_detection_negbin_mod')
+)
 ```
+
 
 #### Re-load models
 
@@ -1983,127 +2303,67 @@ plot(percent_detection_negbin_mod)
 Pulling the conditional effect estimates from the model. The estimate corresponds to the effect of the predictor on the log of the expected response variable. A 1-unit increase (i.e. 1%) in the percentage of environmental detections increases the expected occurrence in EIPAAB database by 1.17% (i.e. (exp(0.01160477)-1)*100 = 1.167237).  
 
 ```{r}
-# Extract estimates
-esitmates_2 <- conditional_effects(percent_detection_negbin_mod)
-estimate_data_2 <- esitmates_2$combind_percent_detection
+esitmates_4 <- conditional_effects(percent_detection_negbin_mod)
+estimate_data_4 <- esitmates_4$combind_percent_detection
 
-# Extract the summary as a data frame
-model_summary_2 <- as.data.frame(summary(percent_detection_negbin_mod, prob = 0.95)$fixed) %>% 
+model_summary_4 <-  as.data.frame(fixef(percent_detection_negbin_mod, summary = TRUE)) %>% 
   rownames_to_column() %>% 
   clean_names()
 
-estimate_2 <- model_summary_2$estimate[2]
-L95CI_2 <- model_summary_2$l_95_percent_ci[2]
-H95CI_2 <- model_summary_2$u_95_percent_ci[2]
-estimate_percent_2 <- (exp(estimate_2)-1)*100
-L95CI_percent_2 <- (exp(L95CI_2)-1)*100
-H95CI_percent_2 <- (exp(H95CI_2)-1)*100
+estimate_4 <- model_summary_4$estimate[2]
+L95CI_4 <- model_summary_4$q2_5[2]
+H95CI_4 <- model_summary_4$q97_5[2]
+estimate_percent_4 <- (exp(estimate_4)-1)*100
+L95CI_percent_4 <- (exp(L95CI_4)-1)*100
+H95CI_percent_4 <- (exp(H95CI_4)-1)*100
 
-model_summary_2 %>% 
-  gt()
+model_summary_4_ft <- model_summary_4 %>% 
+  dplyr::mutate(across(where(is.double), ~ round(.x, 3))) %>% 
+  dplyr::rename("predictor" = rowname) %>% 
+  dplyr::mutate(CrI = paste0(q2_5, " to ", q97_5)) %>% 
+  dplyr::select(predictor, estimate, CrI) %>% 
+  flextable() %>%
+  set_header_labels(
+    predictor = "Predictor",
+    estimate = "Estimate",
+    CrI = "95% CrI"
+  ) %>%
+  autofit()
+
+model_summary_4_ft
 ```
 
-## 📈 Model results 
-
-### Total detections
-
-There is generally a small positive correlation between the total environmental detections in the surface water data and occurrence in the EIAPAAB database (Fig 1; Bayesian negative binomial regression estimate: 0.011 [0.001, 0.022]), although there is a lot of uncertainty around these estimates. With that said, there are a number of compounds that occurrence frequently in the surface waters that are not well represented in the EIPAAB database (see Table 3 below). These could be sensible targets for future behavioural tests. 
-
-#### Fig S12
-
-
-```{r, fig.height=5, fig.width=6}
-text_coord <- test_surfacewater %>% 
-  filter(!is.na(eipaab_n)) %>% 
-  summarise(x = max(combind_detection, na.rm = TRUE)/2,
-            y = max(eipaab_n, na.rm = TRUE))
-
-y_coord <- text_coord %>% pull(y)
-
-x_coord <- text_coord %>% pull(x)
-
-
-fig_s12 <- ggplot() +
-  geom_line(data = estimate_data_1, aes(x = combind_detection, y = estimate__), color = "#1c4595", linewidth = 1) +
-  geom_ribbon(data = estimate_data_1, aes(x = combind_detection, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
-  geom_point(data = test_surfacewater %>% filter(!is.na(eipaab_n)), aes(x = combind_detection, y = eipaab_n, size = combind_samples), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
-  annotate(
-    "text",
-    x = x_coord, 
-    y = y_coord, 
-    label = paste0(
-      "Bayesian negative binomial regression", "\n",
-      "Effect estimate: ", round(estimate_percent_1, 3), "\n",
-      "95% CI: ", round(L95CI_percent_1, 3), " - ", round(H95CI_percent_1, 3)),
-    hjust = 0, vjust = 1, size = 4
-  ) +
-  geom_text_repel(
-    data = test_surfacewater %>% filter(!is.na(eipaab_n), rank_detection_dif %in% 1:5),
-    aes(x = combind_detection, y = eipaab_n, label = compound_name_corrected), size = 3, box.padding = 0.7
-  ) +
-  # Adjust scales
-  scale_fill_gradientn(colours = colorspace::diverge_hcl(7)) +
-  scale_colour_manual(
-    values = c("TRUE" = "#01080A", "FALSE" = "#01080A"), guide = "none"
-    ) +
-  labs(
-    title = "Occurrence ecotoxicology test vs surface water samples",
-    x = "Detections in Environmental databases",
-    y = "Occurrence in EIPAAB",
-    fill = "Number of surface water samples",
-    size = "Number of surface water samples"
-  ) +
-  theme_clean() +
-  theme(
-    legend.position = "bottom",
-    legend.justification = "center"
-  )
-
-fig_s12
-```
-
-
- **Fig S11:** Each pharmaceutical occurrence in the behavioural database plotted against the number of positive detections in the environmental databases. The five compounds highlighted in panels A and B represent those that are currently underrepresented in the behaviour test database based on their rank detections (i.e. rank occurrence in behaviour test databases vs rank detections). The point size represents the total number of samples across all environmental databases.   
-
-
-This code saves the figure above as PDF.  
+Compounds with the most environmental detections that are not present in EIPAAB.   
 
 ```{r}
-# ggsave(filename = paste0(fig_wd, "./figure-3a.pdf"), 
-#        plot = fig_3a,
-#        width = 210,
-#        height = 297/1.5,  # Specify the height of the plot
-#        units = "mm")
-```
-
-#### Table S5
-
-**Table S5:** Compounds with the most environmental detections that are not present in EIPAAB.   
-
-```{r}
-table_S5 <- test_surfacewater %>% 
-  dplyr::filter(is.na(eipaab_n)) %>% 
-  dplyr::arrange(desc(combind_detection)) %>% 
-  dplyr::slice(1:15) %>% 
-  dplyr::mutate(compound_name = sentence_case(compound_name_corrected)) %>% 
-  dplyr::select(compound_name, combind_samples, combind_detection, combind_percent_detection, combind_rank_samples, combind_rank_detection) %>% 
-  dplyr::rename(Name = compound_name, "Samples" = combind_samples, "Detections" = combind_detection, "Percentage detections" = combind_percent_detection, "Rank samples" = combind_rank_samples, "Rank detections" = combind_rank_detection) %>% 
-  gt() %>% 
-  fmt_number(
-    columns = c("Samples", "Detections"), 
-    decimals = 0
-  ) %>% 
-  cols_align(
-    align = "center", 
-    columns = everything()
-  )
+table_S5 <- test_surfacewater %>%
+  filter(is.na(eipaab_n)) %>%
+  arrange(desc(combind_detection)) %>%
+  slice(1:15) %>%
+  mutate(compound_name = sentence_case(compound_name_corrected)) %>%
+  select(
+    compound_name, combind_samples, combind_detection, 
+    combind_percent_detection, combind_rank_samples, combind_rank_detection
+  ) %>%
+  rename(
+    Name = compound_name,
+    Samples = combind_samples,
+    Detections = combind_detection,
+    `Percentage detections` = combind_percent_detection,
+    `Rank samples` = combind_rank_samples,
+    `Rank detections` = combind_rank_detection
+  ) %>%
+  flextable() %>%
+  colformat_num(j = c("Samples", "Detections"), digits = 0) %>%
+  align(align = "center", part = "all") %>%
+  autofit()
 
 table_S5
 ```
 
-### Percentage detections
+##### Fig S3b
 
-#### Fig S13
+Pharmaceutical occurrence in the behavioural test database plotted against the percentage of positive detections (i.e. positive detections relative to total samples for that compound) in environmental databases. The five compounds highlighted represent those that are currently underrepresented in the behaviour test database based on their rank percentage detections (i.e. rank occurrence in behaviour test databases vs rank percentage detections in environmental databases). The point size represents the total number of samples across all environmental databases.   
 
 
 ```{r, fig.height=5, fig.width=6}
@@ -2116,20 +2376,20 @@ y_coord <- text_coord %>% pull(y)
 
 x_coord <- text_coord %>% pull(x)
 
-fig_s13 <- ggplot() +
-  geom_line(data = estimate_data_2, aes(x = combind_percent_detection, y = estimate__), color = "#1c4595", linewidth = 1) +
-  geom_ribbon(data = estimate_data_2, aes(x = combind_percent_detection, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
+fig_s3b <- ggplot() +
+  geom_line(data = estimate_data_4, aes(x = combind_percent_detection, y = estimate__), color = "#1c4595", linewidth = 1) +
+  geom_ribbon(data = estimate_data_4, aes(x = combind_percent_detection, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
   geom_point(data = test_surfacewater %>% filter(!is.na(eipaab_n)) %>% dplyr::arrange(rank_detection_percent_dif) %>% 
                mutate(is_top5 = rank_detection_percent_dif %in% 1:5), 
-             aes(x = combind_percent_detection, y = eipaab_n, size = combind_singles), alpha = 0.4, shape = 21, color = "#01080A", fill = "#fbbc42") +
+             aes(x = combind_percent_detection, y = eipaab_n, size = combind_singles), alpha = 0.4, shape = 21, color = "#01080A", fill = "#1C4794") +
   annotate(
     "text",
     x = x_coord, 
     y = y_coord, 
     label = paste0(
       "Bayesian negative binomial regression", "\n",
-      "Effect estimate (%): ", round(estimate_percent_2, 3), "\n",
-      "CI: ", round(L95CI_percent_2, 3), " - ", round(H95CI_percent_2, 3)
+      "Effect estimate (%): ", round(estimate_percent_4, 3), "\n",
+      "95%CrI: ", round(L95CI_percent_4, 3), " to ", round(H95CI_percent_4, 3)
     ),
     hjust = 0, vjust = 1, size = 4
   ) +
@@ -2141,9 +2401,9 @@ fig_s13 <- ggplot() +
   scale_colour_manual(
     values = c("TRUE" = "#01080A", "FALSE" = "#01080A"), guide = "none") +
   labs(
-    title = "Test vs Percentage Detections",
-    x = "Percentage detections in Environmental Databases",
-    y = "Occurrence in EIPAAB",
+    title = "Test vs percentage detections",
+    x = "Percentage detections in environmental databases",
+    y = "Occurrence in behavioural database",
     size = "Number of single samples"
   ) +
   theme_clean() +
@@ -2152,48 +2412,392 @@ fig_s13 <- ggplot() +
     legend.justification = "center"
   )
 
-fig_s13
+fig_s3b
 ```
 
-**Fig S12:** Pharmaceutical occurrence in the behavioural test database plotted against the percentage of positive detections (i.e. positive detections relative to total samples for that compound) in environmental databases. The five compounds highlighted in panels A and B represent those that are currently underrepresented in the behaviour test database based on their rank percentage detections (i.e. rank occurrence in behaviour test databases vs rank percentage detections in environmental databases). The point size represents the total number of samples across all environmental databases.   
+Save the figure 
 
 ```{r}
-# ggsave(filename = paste0(fig_wd, "./figure-3b.pdf"), 
-#        plot = fig_3b,
-#        width = 210,
-#        height = 297/1.5,  # Specify the height of the plot
-#        units = "mm")
+ggsave(filename = paste0(fig_wd, "./figure-s3b.pdf"),
+       plot = fig_s3b,
+       width = 210,
+       height = 297/1.5,  # Specify the height of the plot
+       units = "mm")
 ```
 
-#### Table S6
+
+Here are compound that are not in EIPAAB database, but have high positive detection rates in the environment.  
 
 ```{r}
-table_s6 <- test_surfacewater %>%
-  dplyr::filter(is.na(eipaab_n) & !is.na(combind_percent_detection)) %>%
-  dplyr::arrange(desc(combind_percent_detection)) %>% 
-  dplyr::slice(1:15) %>% 
-  dplyr::mutate(compound_name = sentence_case(compound_name_corrected)) %>% 
-  dplyr::select(compound_name, combind_singles, combind_single_detection, combind_percent_detection) %>% 
-  dplyr::rename(Name = compound_name, "Single samples" = combind_singles, "Single detections" = combind_single_detection, "Percent detections" = combind_percent_detection) %>% 
-  gt() %>% 
-  fmt_number(
-    columns = c("Percent detections"), 
-    decimals = 2
+gap_tb <- test_surfacewater %>%
+  filter(is.na(eipaab_n), !is.na(combind_percent_detection)) %>%
+  arrange(desc(combind_percent_detection)) %>%
+  slice(1:20) %>%
+  mutate(
+    compound_name = sentence_case(compound_name_corrected),
+    combind_percent_detection = round(combind_percent_detection, 2)
+  ) %>%
+  select(compound_name, combind_singles, combind_single_detection, combind_percent_detection) %>%
+  rename(
+    Name = compound_name,
+    `Single samples` = combind_singles,
+    `Single detections` = combind_single_detection,
+    `Percent detections` = combind_percent_detection
+  ) %>%
+  flextable() %>%
+  align(align = "center", part = "all") %>%
+  autofit()
+
+gap_tb
+```
+
+Saving the table 
+
+```{r}
+save_as_docx(gap_tb, path = paste0(fig_wd, "./gap_tb.docx"))
+```
+
+
+### Temporal trends
+
+Here we will look at general temporal trends using the EIPAAB, UBA and NORMAN data.  
+
+```{r}
+temporal_trends <- all_databases %>% 
+  dplyr::filter(source != "wilkson") %>% 
+  dplyr::mutate(group_type = if_else(source == "eipaab", "test", "environmental")) %>% 
+  dplyr::group_by(group_type, year) %>% 
+  dplyr::reframe(
+    n_samples = sum(n_units_est, na.rm = TRUE),
+    n_compounds = length(unique(compound_name_corrected)),
+    rel_compounds = n_compounds / n_samples,
+    compound_list = list(unique(compound_name_corrected))
   ) %>% 
-  cols_align(
-    align = "center", 
-    columns = everything()
+  tidyr::complete(group_type, year) %>% 
+  dplyr::filter(!is.na(year)) %>% 
+  dplyr::group_by(group_type) %>% 
+  dplyr::mutate(compound_list = purrr::map(compound_list, ~ if (is.null(.x)) character(0) else .x),
+                 cumulative_compounds = purrr::accumulate(compound_list, ~ union(.x, .y)) %>% 
+                             purrr::map_int(length),
+                n_samples_z = scale(n_samples)) %>% 
+  dplyr::ungroup()
+```
+
+Let's look at the total number of samples per year in these combined databases   
+
+```{r, fig.height=5, fig.width=8}
+temporal_trends %>% 
+  #dplyr::filter(year > 1999 & year < 2021) %>% 
+  ggplot(aes(x = year, y = n_samples)) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(~group_type, scales = "free",
+             labeller = labeller(group_type = c(
+               "environmental" = "Environmental data",
+               "test" = "Behavioural ecotoxicology data")) 
+             ) +
+    labs(
+    title = "Data over time",
+    x = "Year",
+    y = "Sampling effort (tests or water samples)"
+    ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+```
+
+For a clearer temporal trend we look within the NORMAN and UBA-PHAMA databases separately. 
+
+Making a new dataset just for NORMAN EMPODAT and PHARMS-UBA database   
+
+```{r}
+uba_norman_temporal_trends <- all_databases %>% 
+  dplyr::filter(source == "uba" | source == "norman") %>% 
+  dplyr::group_by(source, year) %>% 
+  dplyr::reframe(
+    n_samples = sum(n_units_est, na.rm = TRUE),
+    n_compounds = length(unique(compound_name_corrected)),
+    rel_compounds = n_compounds / n_samples,
+    compound_list = list(unique(compound_name_corrected))
+  ) %>% 
+  tidyr::complete(source, year) %>% 
+  dplyr::filter(!is.na(year)) %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::mutate(compound_list = purrr::map(compound_list, ~ if (is.null(.x)) character(0) else .x),
+                 cumulative_compounds = purrr::accumulate(compound_list, ~ union(.x, .y)) %>% 
+                             purrr::map_int(length),
+                n_samples_z = scale(n_samples)) %>% 
+  dplyr::ungroup()
+```
+
+Closer look at UBA
+
+```{r, fig.height=5, fig.width=5}
+uba_sample_year <- uba_norman_temporal_trends %>% 
+  dplyr::filter(source == "uba") %>%
+  ggplot(aes(x = year, y = n_samples)) +
+  geom_point(alpha = 0.5) +
+    labs(
+    title = "Data over time",
+    x = "Year",
+    y = "Sampling effort"
+    ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+uba_sample_year
+```
+
+Save this figure for the MS   
+
+```{r}
+ggsave(filename = paste0(fig_wd, "./uba_sample_year.pdf"),
+       plot = uba_sample_year,
+       width = 210,
+       height = 297/1.5,
+       units = "mm")
+```
+
+
+Now the cumulative number of compounds over time.  
+
+```{r, fig.height=5, fig.width=8}
+temporal_trends %>% 
+  #dplyr::filter(year > 1999 & year < 2021) %>% 
+  ggplot(aes(x = year, y = cumulative_compounds, size = n_samples_z)) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(~group_type, scales = "free",
+             labeller = labeller(group_type = c(
+               "environmental" = "Environmental data",
+               "test" = "Behavioural ecotoxicology data")) 
+             ) +
+    labs(
+    title = "Cummulative compounds",
+    x = "Year",
+    y = "Total number of compounds",
+    size = "Sample effort (scaled)"
+    ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+```
+
+With a closer look at UBA
+
+```{r, fig.height=5, fig.width=5}
+uba_cummulative_fig <- uba_norman_temporal_trends %>% 
+  dplyr::filter(source == "uba") %>% 
+  ggplot(aes(x = year, y = cumulative_compounds, size = n_samples_z)) +
+  geom_point(alpha = 0.5) +
+  # facet_wrap(~source, scales = "free",
+  #            labeller = labeller(source = c(
+  #              "uba" = "PHARMS-UBA database",
+  #              "norman" = "NORMAN EMPODAT database")) 
+  #            ) +
+    labs(
+    title = "Cummulative compounds",
+    x = "Year",
+    y = "Total number of compounds",
+    size = "Sample effort (scaled)"
+    ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
   )
 
-table_s6
+uba_cummulative_fig
 ```
 
 
-# 🧠 Supplementary discussion 
+Save this figure for the MS   
 
-## Compound occurrence comparison
+```{r}
+ggsave(filename = paste0(fig_wd, "./uba_cummulative_fig.pdf"),
+       plot = uba_cummulative_fig,
+       width = 210,
+       height = 297/1.5,
+       units = "mm")
+```
 
-We found a weak positive relationship between the compounds studied in behavioural assays and their detection frequency in environmental databases—consistent with the idea that environmental occurrence may be partly motivating the behavioural research. The intended therapeutic effects or mechanism of action also appears to play a significant role in overall representation in the behavioural test database, with most of the most common compounds being psychoactive/neuroactive pharmaceuticals (e.g. antidepressants, antiepileptics and anxiolytics; Table S4). 
 
 
+# ☕️ Dose selection function
 
+`select_doses()` Generates a sequence of recommended doses based on observed environmental concentration data, using a specified measure of central tendency (mean, median, or mode) and geometric spacing. The function selects up to max_doses values spaced above and/or below the central value, optionally constrained to observed values and limits of quantification (LOQ). It returns a dose table, a summary of the distribution, and side-by-side plots showing dose placement on both raw and log-scaled density curves. Designed to support transparent and data-informed dose selection for ecotoxicological study design.
+
+
+```{r}
+select_doses <- function(data,
+                         variable,
+                         central_tendency = "median",
+                         min_spacing = 3.2,
+                         max_doses = 5,
+                         LOQ = 0.0001,
+                         direction = "both",
+                         limit_to_observed = FALSE) {
+  library(ggplot2)
+  library(dplyr)
+  library(patchwork)
+
+  values <- data[[variable]]
+  values <- values[!is.na(values) & values > 0]
+  if (length(values) < 3) stop("Not enough data points.")
+
+  # Central tendency
+  center <- switch(tolower(central_tendency),
+                   "mean" = mean(values),
+                   "median" = median(values),
+                   "mode" = {
+                     d <- density(values)
+                     d$x[which.max(d$y)]
+                   },
+                   stop("Invalid central_tendency"))
+
+  upper <- quantile(values, 0.95)
+  lower <- quantile(values, 0.05)
+  max_val <- max(values)
+  min_val <- min(values)
+
+  doses <- c(center)
+  labels <- c("D1")
+
+  # Generate above and below doses
+  above <- c()
+  below <- c()
+
+  # Above
+  val <- center
+  while (length(above) < max_doses) {
+    val <- val * min_spacing
+    if (limit_to_observed && val > max_val) break
+    above <- c(above, val)
+  }
+
+  # Below
+  val <- center
+  while (length(below) < max_doses) {
+    val <- val / min_spacing
+    if (val <= LOQ) break
+    if (limit_to_observed && val < min_val) break
+    below <- c(below, val)
+  }
+
+  # Alternate selection
+  dose_list <- c(center)
+  i <- 1
+  while (length(dose_list) < max_doses) {
+    if (i <= length(above)) dose_list <- c(dose_list, above[i])
+    if (length(dose_list) == max_doses) break
+    if (i <= length(below)) dose_list <- c(dose_list, below[i])
+    if (length(dose_list) == max_doses) break
+    i <- i + 1
+    if (i > 20) break
+  }
+
+  if (length(dose_list) < max_doses) {
+    warning("Unable to select enough doses within constraints.")
+    return(NA)
+  }
+
+  dose_list <- sort(dose_list)
+  dose_df <- data.frame(dose = paste0("D", seq_along(dose_list)),
+                        value = dose_list)
+
+  # Summary
+  summary_tbl <- data.frame(
+    central = center,
+    upper_95 = upper,
+    lower_05 = lower,
+    max = max_val,
+    min = min_val,
+    LOQ = LOQ,
+     row.names = NULL
+  )
+
+  # Base density for grey fill
+  dens <- density(values)
+  dens_df <- data.frame(x = dens$x, y = dens$y)
+  dens_df <- dens_df %>%
+    mutate(in_cri = x >= lower & x <= upper)
+  
+  
+  caption_text <- paste(
+  "Density plots show the distribution of observed environmental data.\n",
+  "The blue dashed line indicates the selected measure of central tendency\n",
+  "(mean, median, or mode). The red dot-dash line marks the Limit of\n",
+  "Quantification (LOQ), defult 0.0001. Black points represent the recommended doses\n",
+  "based on spacing from the central value. The shaded grey region denotes\n",
+  "the 95% credible interval (CrI) of the data distribution.", sep = "")
+
+  # Plot
+  base_plot <- ggplot() +
+    geom_density(data = data, aes_string(x = variable), size = 1.2) +
+    geom_ribbon(data = dens_df, aes(x = x, ymin = 0, ymax = ifelse(in_cri, y, NA)),
+                fill = "grey80", alpha = 0.5) +
+    geom_vline(xintercept = center, color = "blue", linetype = "dashed", size = 1) +
+    geom_vline(xintercept = LOQ, color = "red", linetype = "dotdash") +
+    geom_point(data = dose_df, aes(x = value, y = 0), size = 3, color = "black") +
+    geom_text(data = dose_df, aes(x = value, y = 0.01, label = dose), vjust = -1) +
+    ggtitle("Dose Selection (Raw Scale)") +
+    theme_minimal() +
+    labs(caption = caption_text) +
+    theme(plot.caption = element_text(size = 9, hjust = 0, lineheight = 1.1))
+
+
+  dens_log <- density(log10(values))
+  dens_df_log <- data.frame(x = 10^dens_log$x, y = dens_log$y)
+  
+  log_plot <- ggplot() +
+    geom_line(data = dens_df_log, aes(x = x, y = y), size = 1.2) +
+    annotate("rect", xmin = lower, xmax = upper, ymin = 0, ymax = max(dens_df_log$y), 
+             fill = "grey80", alpha = 0.4) +
+    geom_vline(xintercept = center, color = "blue", linetype = "dashed", size = 1) +
+    geom_vline(xintercept = LOQ, color = "red", linetype = "dotdash") +
+    geom_point(data = dose_df, aes(x = value, y = 0), size = 3, color = "black") +
+    geom_text(data = dose_df, aes(x = value, y = 0.01 * max(dens_df_log$y), label = dose), vjust = -1) +
+    scale_x_log10() +
+    ggtitle("Dose Selection (Log Scale)") +
+    theme_minimal()
+
+  plots <- print(base_plot + log_plot)
+  
+  plots
+  
+  covered_prop <- mean(values >= min(dose_list) & values <= max(dose_list))
+summary_tbl$distribution_covered <- covered_prop
+
+  return(list(doses = dose_df, summary = summary_tbl, plot = plots))
+}
+```
+
+## Example use
+
+Here's an example data set based on one of the compounds in the dataset, fluoxetine
+
+```{r}
+fluoxetine_surfacwaters <- all_databases %>% 
+  dplyr::filter(matrix_group == "surfacewater" & compound_name == "fluoxetine") %>% 
+  dplyr::arrange(value) %>% 
+  dplyr::filter(value > 0)
+```
+
+Apply to concentration data
+
+```{r}
+my_doses <- select_doses(
+  data = fluoxetine_surfacwaters,
+  variable = "value",
+  central_tendency = "median",
+  min_spacing = 5,
+  max_doses = 3,
+  LOQ = 0.0001,
+  direction = "both",
+  limit_to_observed = FALSE
+)
+```

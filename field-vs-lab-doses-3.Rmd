@@ -1,0 +1,1205 @@
+---
+title: "field-vs-lab-does-3"
+author: "Jake Martin"
+date: "2025-06-11"
+output: html_document
+---
+
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+
+<!------------------------------->
+# 📕 README
+<!------------------------------->
+
+**SCRIPT PART 3 of 3** 
+This script "field-vs-lab-doses-r-3" is the third of three used for this project. This deals with a specific sub-set Quality Assurance and Quality Control (QA/QC) analysis. The second script, "field-vs-lab-doses-r-2", deals with the analysis, and  the first script tidies the input databases and combines them into a single data frame for analysis. If you download the data files for this project from the Open Science Framework (https://osf.io/h6cde/, DOI 10.17605/OSF.IO/H6CDE), you can run this script independently.   
+
+**ARTICLE** 
+This R script is associated with **Martin et al (2025)** "Aligning Behavioural Ecotoxicology Tests with Real-World Water Concentrations: Current Minimum Tested Levels Far Exceed Environmental Reality" DOI: <*to be added*> 
+
+**AUTHORS**  
+Jake M. Martin <sup>1,2,3</sup>*  
+Erin S. McCallum <sup>1</sup>   
+Jack A. Band <sup>2,4</sup> 
+
+**AFFILIATIONS**  
+(1) School of Life and Environmental Sciences, Deakin University, Geelong, Australia  
+(2) Department of Wildlife, Fish, and Environmental Studies, Swedish University of Agricultural Sciences, Umeå, Sweden  
+(3) School of Biological Sciences, Monash University, Melbourne, Australia  
+(4) Institute of Zoology, Zoological Society of London, London, United Kingdom  
+(*) Corresponding author  
+
+**AIM**  
+The aim of this study is two-fold: (1) identify whether tested concentrations in behavioural ecotoxicology studies reflect those that are detected in surface waters and/or waste water; (2) to compare the target pharmaceuticals tested in behavioural ecotoxicology to what have been detected in the environment, highlighting potential targets for future investigation.  
+
+**METHODS**  
+To achieve these aims, this study capitalises on four extensive open access databases, one of which focuses on peer-review research on the behavioural ecotoxicology of pharmaceuticals<sup>1</sup>, and the remaining focus on pharmaceutical environmental occurrence and concentrations<sup>2,3,4</sup>.  
+
+<!------------------------------->
+# ⚙️ Set-up and packages
+<!------------------------------->
+
+Here we define our Knit settings, to make the output more user friendly, and to cache output for faster knitting.  
+```{r setup}
+#kniter setting
+knitr::opts_chunk$set(
+message = FALSE,
+warning = FALSE, # no warnings
+cache = TRUE,# Cacheing to save time when kniting
+cache.lazy = FALSE, # I am running into issues with cache because the files are very large
+tidy = TRUE
+)
+
+# ---- Install pacman if it's not already installed ----
+if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
+
+# ---- List of required packages ----
+pkgs <- c(
+  # ----- Data Visualisation -----
+  "ggthemes", "bayesplot", "gt", "gtsummary", "plotly", "qqplotr", "ggrepel",
+  "colorspace",
+  
+  # ----- Tidy Data and Wrangling -----
+  "tidyverse", "janitor", "readxl", "broom.mixed", "data.table", "devtools", "scales",
+  
+  # ----- Modelling and Statistical Analysis -----
+  "brms", "rstan", "cmdstanr", "marginaleffects", "performance", "emmeans",
+  "tidybayes","future", "coda"
+)
+
+# ---- Install and load all packages using pacman ----
+suppressPackageStartupMessages(
+  pacman::p_load(char = pkgs, install = TRUE)
+)
+```
+
+Here's a list of the package names  
+
+```{r}
+pkgs
+```
+
+<!------------------------------->
+# 🔧 Custom functions 
+<!------------------------------->
+
+Here are some custom function used within this script. 
+
+`sentence_case()` Changes a string into sentence case.  
+
+```{r}
+sentence_case <- function(text) {
+  text <- tolower(text) # Convert the entire text to lowercase
+  text <- sub("^(\\s*\\w)", "\\U\\1", text, perl = TRUE) # Capitalise the first letter
+  return(text)
+}
+```
+
+<!------------------------------->
+# 📂 Directories 
+<!------------------------------->
+
+Here we define the directories for the project. We also make the output directories if they don't already exist. 
+
+## Input
+
+These are the input directors for the databases used in this project. 
+
+**📥 data_wd**: Directory for the input data.  
+
+```{r}
+wd <- getwd() # getwd tells us what the current wd is, we are using this to drop it in a variable called wd
+data_wd <- paste0(wd, "./data") # creates a variable with the name of the wd we want to use
+```
+
+## Output
+
+**fig_wd**: Directory for the output figures.  
+
+```{r, echo = TRUE, results = "hide"}
+fig_wd <- paste0(wd, "./fig")
+if (!dir.exists("fig")) {dir.create("fig")}
+```
+
+**mods_wd**: Directory for the output models.  
+
+```{r}
+mods_wd <- paste0(wd, "./mods")
+if (!dir.exists("mods")) {dir.create("mods")}
+```
+
+
+<!------------------------------->
+# 💿 Databases 
+<!------------------------------->
+
+This is the database made in part one of this script `martin-field-vs-lab-all-databases.csv`
+
+## All databases
+
+```{r}
+all_databases <- fread(paste0(data_wd, "./martin-field-vs-lab-all-databases.csv"))
+```
+
+<!---------------------------------------------->
+# Environmental data quality validation metadata
+<!---------------------------------------------->
+
+## NORMAN
+
+Most data was not assigned to a validation level (97%), less than 3% had reported validation level at or above 1
+
+```{r}
+total_count_norman <- all_databases %>% 
+  dplyr::filter(source == "norman") %>% 
+  nrow(.)
+
+validation_level_tbl <- all_databases %>% 
+  dplyr::filter(source == "norman") %>% 
+  dplyr::group_by(validation_level) %>% 
+  dplyr::reframe(n = length(unique_row_id),
+                 precent = round((n/total_count_norman)*100,1))
+
+validation_level_tbl %>% 
+  flextable()
+```
+
+Just considering those that were assigned a validation level.
+
+```{r}
+validation_level_tbl %>%
+  mutate(validation_level = if_else(str_starts(validation_level, "V"), "Yes", validation_level)) %>% 
+  dplyr::filter(validation_level %in% c("Yes", "No")) %>% 
+  dplyr::group_by(validation_level) %>% 
+  dplyr::reframe(n_sum = sum(n))
+```
+
+
+Most data on the field bank sample was unavailable (~97%), 3.1% included a field bank sample.
+
+```{r}
+all_databases %>% 
+  dplyr::filter(source == "norman") %>% 
+  dplyr::group_by(field_blank) %>% 
+  dplyr::reframe(n = length(unique_row_id),
+                 precent = round((n/total_count_norman)*100,1)) %>% 
+  flextable()
+```
+
+Similarly, most data for ISO17025 accredited laboratory is missing (97.0%), with only 2.5% of data reported to come from a ISO17025 accredited laboratory.
+
+```{r}
+all_databases %>% 
+  dplyr::filter(source == "norman") %>% 
+  dplyr::group_by(ISO17025_lab_accredited) %>% 
+  dplyr::reframe(n = length(unique_row_id),
+                 precent = round((n/total_count_norman)*100,1)) %>% 
+  flextable()
+```
+
+
+Again most data was not assigned a analyte accredited (97.0%), only 0.1% of data come from a lab with a specific analyte accredited.
+
+```{r}
+all_databases %>% 
+  dplyr::filter(source == "norman") %>% 
+  dplyr::group_by(analyte_accredited) %>% 
+  dplyr::reframe(n = length(unique_row_id),
+                 precent = round((n/total_count_norman)*100,1)) %>% 
+  flextable()
+```
+
+Most data was not assigned to interlaboratory analyte comparative study (97%), only 1.3% do so.
+
+```{r}
+all_databases %>% 
+  dplyr::filter(source == "norman") %>% 
+  dplyr::group_by(interlaboratory_analyte_study) %>% 
+  dplyr::reframe(n = length(unique_row_id),
+                 precent = round((n/total_count_norman)*100,1)) %>% 
+  flextable()
+```
+
+
+## UBA 
+
+For UBA data 83% was considered 'good'
+
+```{r}
+total_count_uba <- all_databases %>% 
+  dplyr::filter(source == "uba") %>% 
+  nrow(.)
+
+all_databases %>% 
+  dplyr::filter(source == "uba") %>%
+  dplyr::group_by(literature_credibility) %>% 
+   dplyr::reframe(n = length(unique_row_id),
+                 precent = round((n/total_count_uba)*100,1)) %>% 
+  flextable()
+```
+
+
+## Filtering by QC/QA
+
+Here we will filter for UBA data with the highest quality flag (i.e. literature credibility must be ‘good’), NORMAN data that was assigned to the validation system at level 1 or above (the minimum level for the validation system), and maintained all of the Wilkinson et al. (2022) data.
+
+```{r}
+validation_levels_check  <- c("V1", "V2", "V3")
+
+all_databases_with_qc <- all_databases %>%
+  dplyr::mutate(
+    qc_check = case_when(
+      source == "eipaab" ~ NA,
+      source == "uba" &
+        literature_credibility == "good" ~ "Yes",
+      source == "norman" &
+        validation_level %in% validation_levels_check ~ "Yes",
+      source == "wilkson" ~ "Yes",
+      TRUE ~ "No"  # This catches all other cases
+    )
+  )
+```
+
+A breakdown of data that meet QC check
+
+```{r}
+all_databases_with_qc %>% 
+  dplyr::group_by(source, qc_check) %>% 
+  dplyr::reframe(n = length(unique_row_id)) %>% 
+  flextable()
+```
+
+## Filtered data
+
+Let's just take those with qc checks
+
+```{r}
+all_databases_with_qc_filter <- all_databases_with_qc %>% 
+  dplyr::filter(qc_check == "Yes")
+
+eipaab_only <- all_databases_with_qc %>% 
+  dplyr::filter(source == "eipaab")
+
+all_databases_with_qc_filter <- rbind(all_databases_with_qc_filter, eipaab_only)
+```
+
+<!------------------------------->
+# 🧮 Analysis (filtered) 
+<!------------------------------->
+
+## Samples/data
+
+Let's see how much data is present in the filtered databases compared to full database.   
+
+```{r}
+total_water_samples_filter <- all_databases_with_qc_filter %>% 
+  dplyr::filter(source != "eipaab") %>% 
+  dplyr::reframe(n = sum(n_units_est, na.rm = TRUE)) %>% 
+  dplyr::pull(n)
+
+total_water_samples <- all_databases %>% 
+  dplyr::filter(source != "eipaab") %>% 
+  dplyr::reframe(n = sum(n_units_est, na.rm = TRUE)) %>% 
+  dplyr::pull(n)
+  
+paste0("There are ", total_water_samples, " water samples in the full database. There are ", total_water_samples_filter, " water samples in the filtred database. That is, ", round((total_water_samples_filter/total_water_samples)*100,2), "% of the total database.")
+```
+
+How many water samples are surface water vs wastewater
+
+```{r}
+all_databases_with_qc %>% 
+  dplyr::filter(source != "eipaab") %>% 
+  dplyr::group_by(matrix_group, qc_check) %>% 
+  dplyr::reframe(n = sum(n_units_est, na.rm = TRUE)) %>% 
+  flextable()
+```
+
+
+### Table S1
+
+A breakdown for data contributed by each data source.  
+
+**Table SX**: The number of pharmaceutical compounds within each of the four dataset (EIPAAB, NORMAN, PHARMS-UBA, and Wilksom) used for this investigation, and number of individual data rows within each of the database (i.e. tests^a^ for EIPAAB, and water samples^b^ for the environmental occurrence databases).
+
+```{r}
+soruce_data <- all_databases_with_qc_filter %>% 
+  dplyr::group_by(source) %>% 
+  dplyr::reframe(Data = sum(n_units_est, na.rm = TRUE),
+                 "Number of compounds" = length(unique(compound_name_corrected))) %>% 
+  dplyr::rename(Source = source) %>% 
+  dplyr::mutate(Source = case_when(
+    Source == "eipaab" ~ "EIPAAB",
+    Source == "norman" ~ "QA/QC filtered NORMAN‡",
+    Source == "uba" ~ "QA/QC filtered PHARMS-UBA",
+    Source == "wilkson" ~ "Wilkson et al.",
+  ))
+
+total_data <- all_databases_with_qc_filter %>% 
+  dplyr::reframe(Data = sum(n_units_est, na.rm = TRUE),
+                 "Number of compounds" = length(unique(compound_name_corrected))) %>% 
+  dplyr::mutate(Source = "Total")
+
+n_summary <- rbind(soruce_data, total_data)
+
+table_s1 <- n_summary %>% 
+ mutate(Data = round(Data, 0)) %>%  # Round 'Data' column to 0 decimals
+  flextable() %>%
+  align(align = "center", part = "all")  # Centre all columns and header
+
+
+table_s1
+``` 
+
+
+*Note: (a) each row of the EIPAAB database represents a unique species by compound exposure; (b) each row within the NORMAN and PHARMS-UBA represents one of more samples, as a row can be a measure of central tendency (e.g. mean or median) or a single value, all rows in the Wilkson database represent a single sample; ‡ NORMAN database was filtered to remove data from the German Environment Agency (UBA), and restricted to 2014-2022, as the PHARMS-UBA also included data from NORMAN prior to 2014. Thus, this number is not a true total number of pharmaceutical samples present in the NORMAN database*
+
+
+Save the table as a word document `table_s1.docx`
+
+```{r}
+save_as_docx(table_s1, path = paste0(fig_wd, "./table_s1.docx"))
+```
+
+
+## Cross-over
+
+Checking the cross-over between the compounds assessed in behavioural test against all environmental occurrence data.  
+
+```{r}
+eipaab_compounds_list <- all_databases_with_qc_filter %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::pull(compound_name_corrected)
+
+n_eipaab_compounds <- length(eipaab_compounds_list)
+
+enviro__cross_over_compounds_list <- all_databases_with_qc_filter %>% 
+  dplyr::filter(source != "eipaab" & compound_name_corrected %in% eipaab_compounds_list) %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::pull(compound_name_corrected)
+
+n_cross_over_compounds <- length(enviro__cross_over_compounds_list)
+
+percent_cross_over = round(n_cross_over_compounds/n_eipaab_compounds*100,2)
+
+paste0(n_cross_over_compounds, " of the ", n_eipaab_compounds, " pharmaceuticals tested in the EIPAAB database (with an environmental motivation) were present in the environmental databases (i.e. ", percent_cross_over, "%)")
+```
+
+## Concentrations 
+
+For questions around concentration, I will filtered for only cases where the levels are above zero or above the limit of detection (i.e. positive detections or above LOD). We will do this for two reasons, the first being that when researchers are trying to estimate the risk of environmental exposure, we assume that they are emulating potential exposure events at a contaminated site, not trying to replicate a theoretical global surface water average. The second is, by removing zero values and values below LODs, we are trying to be ***more conservative*** with the relative comparison between tested doses in behavioural ecotoxicology and observed environmental doses (as opposed to using some value substitute/estimated value for samples below detection limit). We are also using both single values and summary values of central tendency (means, median, ect). Fig
+
+In this section we are calculating summary metrics for concentrations used in the behavioural test and detected in surface waters and effluent in the enviromental data. We will do this separately for effluent and surface waters samples. We are calculating, the mean, median, min, max, range, n (number of contributing data points), standard deviation (sd), standard error (se), and the upper and lower 95% credible intervals (ci_upper, ci_lower) using empirical quantiles.  
+
+```{r}
+conc_summary <- all_databases_with_qc_filter %>% 
+  dplyr::filter(value > 0) %>% 
+  dplyr::group_by(matrix_group, compound_name_corrected) %>% 
+  dplyr::reframe(mean = mean(value, na.rm = TRUE),
+                 median = median(value, na.rm = TRUE),
+                 min = min(value, na.rm = TRUE),
+                 max = max(value, na.rm = TRUE),
+                 range = max-min,
+                 n = length(unique_row_id),  # Sample size
+                 sd = sd(value, na.rm = TRUE),  # Standard deviation
+                 ci_lower = quantile(value, 0.025, na.rm = TRUE),  #95% credible interval using quantiles
+                 ci_upper = quantile(value, 0.975, na.rm = TRUE)
+                 ) %>% 
+  dplyr::mutate(ci_lower = if_else(is.na(ci_lower), NA, ci_lower),
+                ci_upper = if_else(is.na(ci_upper), NA, ci_upper)) %>% 
+  tidyr::complete(
+    tidyr::expand(nesting(matrix_group, compound_name_corrected))
+  )
+```
+
+
+Here we will add the summary statistics from above to the full database, so we can see how many EIPAAB tested concentrations fall under the median surface water and effluent concentrations for each compound.   
+
+```{r}
+rename_cols <- conc_summary %>% 
+  dplyr::select(-matrix_group, -compound_name_corrected) %>% 
+  colnames()
+
+conc_summary_eff <- conc_summary %>% 
+  dplyr::filter(matrix_group == "effluent") %>% 
+   dplyr::rename_with(
+    .cols = all_of(rename_cols),  # Select columns to rename
+    .fn = ~ paste0("effluent_", .)  # Prefix with "effluent_"
+  ) %>% 
+  dplyr::select(-matrix_group)
+
+
+conc_summary_surf <- conc_summary %>% 
+  dplyr::filter(matrix_group == "surfacewater") %>% 
+   dplyr::rename_with(
+    .cols = all_of(rename_cols),  # Select columns to rename
+    .fn = ~ paste0("surfacewater_", .)  # Prefix with "effluent_"
+  ) %>% 
+  dplyr::select(-matrix_group)
+
+
+all_databases_with_qc_filter_with_sum <- all_databases_with_qc_filter %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::left_join(., conc_summary_eff, by = "compound_name_corrected") %>% 
+  dplyr::left_join(., conc_summary_surf, by = "compound_name_corrected") %>% 
+  dplyr::mutate(under_med_surf = if_else(value < surfacewater_median, 1, 0),
+                under_hci_surf = if_else(value < surfacewater_ci_upper, 1, 0),
+                under_med_effl = if_else(value < effluent_median, 1, 0),
+                under_hci_effl = if_else(value < effluent_ci_upper, 1, 0),
+                diff_med_surf = value/surfacewater_median,
+                diff_hic_surf = value/surfacewater_ci_upper,
+                diff_med_effl = value/effluent_median,
+                diff_hic_effl = value/effluent_ci_upper
+                )
+```
+
+Making a database for surface waters and waste waters   
+
+```{r}
+surfacewater_conc <- all_databases_with_qc_filter_with_sum %>%
+  dplyr::filter(!is.na(surfacewater_median), !is.na(value)) %>% 
+  dplyr::mutate(value_log = log(value),
+                surfacewater_median_log = log(surfacewater_median),
+                relative_year = year - min(year))
+
+wastewater_conc <- all_databases_with_qc_filter_with_sum %>%
+  dplyr::filter(!is.na(effluent_median), !is.na(value)) %>% 
+  dplyr::mutate(value_log = log(value),
+                effluent_median_log = log(effluent_median),
+                relative_year = year - min(year))
+```
+
+
+### Modeling
+
+#### 🌊 Surface water
+
+##### Model structure
+
+```{r}
+concentration_str <- bf(value_log ~ surfacewater_median_log + relative_year + doses,
+                  family = gaussian())
+
+concentration_str_null <- bf(value_log ~ relative_year + doses,
+                  family = gaussian())
+```
+
+These are the default priors.  
+
+```{r}
+suppressWarnings(get_prior(concentration_str, data = surfacewater_conc,  family = gaussian())) %>% 
+  flextable()
+```
+##### Run model
+
+Run model. This has been hashed out as I have saved the model, and will re-load it instead of re-running it. 
+
+```{r}
+options(brms.backend = "cmdstanr")
+concentration_mod_filter_log <- brm(concentration_str,
+               data = surfacewater_conc,
+               cores = 4,
+               chains = 4,
+               #prior = mod_priors, #use defaults
+               warmup = 1000,
+               seed = 20250418,
+               thin = 2,
+               iter = 8000,
+               control = list(max_treedepth = 20, adapt_delta = 0.95),
+               save_pars = save_pars(all=TRUE),
+               sample_prior = TRUE,
+               file = paste0(mods_wd, './concentration_mod_filter_log'))
+
+concentration_mod_filter_null_log <- brm(concentration_str_null,
+               data = surfacewater_conc,
+               cores = 4,
+               chains = 4,
+               #prior = mod_priors, #use defaults
+               warmup = 1000,
+               seed = 20250418,
+               thin = 2,
+               iter = 8000,
+               control = list(max_treedepth = 20, adapt_delta = 0.95),
+               save_pars = save_pars(all=TRUE),
+               sample_prior = TRUE,
+               file = paste0(mods_wd, './concentration_mod_filter_null_log'))
+
+```
+
+##### Re-load models
+
+Reload the model if necessary.  
+
+```{r}
+concentration_mod_filter_log <-  readRDS(file = paste0(mods_wd, "./concentration_mod_filter_log.rds"))
+concentration_mod_filter_null_log <-  readRDS(file = paste0(mods_wd, "./concentration_mod_filter_null_log.rds"))
+```
+
+
+##### Model diagnostics
+
+Comparing null model with surface water model  
+
+If the elpd_diff is more than 2 × se_diff, it's considered statistically meaningful.
+
+```{r}
+loo_compare(loo(concentration_mod_filter_log, moment_match = TRUE), loo(concentration_mod_filter_null_log,  moment_match = TRUE))
+```
+
+The null model is much worse  
+
+| **Bayes Factor (BF₁₀)** | **Interpretation**              |
+| ----------------------- | ------------------------------- |
+| 1 to 3                  | Anecdotal evidence              |
+| 3 to 10                 | Moderate evidence               |
+| 10 to 30                | Strong evidence                 |
+| 30 to 100               | Very strong evidence            |
+| **>100**                | **Extreme (decisive) evidence** |
+
+
+```{r}
+bayes_factor(concentration_mod_filter_log, concentration_mod_filter_null_log)
+```
+
+The R2 value is low. It explains about 9.5% of the variance in the outcome variable, with reasonable certainty that the true value lies between 5.6% and 13.3%.   
+
+```{r}
+performance::r2_bayes(concentration_mod_filter_log, robust = FALSE, ci = 0.95)
+```
+
+Posterior predictive checks using ECDF plots indicated that the model captures the distribution of the observed data well. The empirical distribution of the observed response fell comfortably within the range of simulated draws from the posterior predictive distribution, suggesting no systematic deviations or poor fit across the data range.
+
+```{r}
+color_scheme_set("red")
+brms::pp_check(concentration_mod_filter_log, ndraws = 25, type = "dens_overlay")
+brms::pp_check(concentration_mod_filter_log, ndraws = 25, type = "ecdf_overlay")  
+y_rep <- posterior_predict(concentration_mod_filter_log, ndraws = 1000)
+y_obs <- concentration_mod_filter_log$data$value_log  # Replace with your actual response variable
+ppc_stat_2d(y = y_obs, yrep = y_rep, stat = c("median", "mad"))
+```
+
+
+Checking R-hat values to confirm model convergence and ESS fo estimates.   
+
+```{r}
+print(summary(concentration_mod_filter_log, prob = 0.95)) #All Rhat = 1 (good).  
+```
+
+Diagnostic plots look fine. A smaller shape value indicates greater overdispersion (variance is much larger than the mean).  
+
+```{r}
+color_scheme_set("red")  
+plot(concentration_mod_filter_log)  
+```
+
+
+Check model performance 
+
+```{r, fig.height=8, fig.width=8}
+performance::check_model(concentration_mod_filter_log)
+```
+
+
+##### Model estimates
+
+Pulling the marginal effect estimates from the model for our plots.  
+
+```{r}
+estimate_data_1 <- conditional_effects(concentration_mod_filter_log, effects = "surfacewater_median_log")[[1]]
+estimate_data_year_1 <- conditional_effects(concentration_mod_filter_log, effects = "relative_year")[[1]]
+```
+
+
+These estimated coefficients represent the average effects across the dataset, controlling for the other variables in the model. Because this is a log–log model, the coefficient for `log(surfacewater_median)` reflects an elasticity—that is, the percent change in the response `(log(value))` for a percent change in the predictor.
+
+The estimated effect of log(surfacewater_median) was **β = 0.128 (95% CrI: –0.133 to 0.389)**, indicating that a **1% increase in surface water concentration is associated with an average 0.128% increase in tested concentration**, holding year and number of doses constant. However, the 95% credible interval includes zero, suggesting that this effect is not statistically well-supported and may reflect sampling uncertainty.
+
+The estimated coefficient for `relative_year` was **β = –0.106 (95% CrI: –0.170 to –0.042)**, indicating a statistically robust temporal decline in tested concentrations. Since this predictor is on the natural scale while the response is log-transformed, the effect translates to an average **10.1% decrease in tested concentration per year**, holding other variables constant `(exp(–0.106) ≈ 0.899)`.
+
+The coefficient for doses was **β = 0.068 (95% CrI: –0.094 to 0.234)**, suggesting a weak and uncertain positive association. Because the credible interval includes zero, there is no strong evidence that the number of doses tested significantly affects the minimum reported concentration.
+
+```{r}
+model_summary_1 <-  as.data.frame(fixef(concentration_mod_filter_log, summary = TRUE)) %>% 
+  rownames_to_column() %>% 
+  clean_names()
+
+estimate_1 <- model_summary_1$estimate[2]
+L95CI_1 <- model_summary_1$q2_5[2]
+H95CI_1 <- model_summary_1$q97_5[2]
+
+estimate_year_1 <- model_summary_1$estimate[3]
+L95CI_year_1 <- model_summary_1$q2_5[3]
+H95CI_year_1 <- model_summary_1$q97_5[3]
+
+
+qcqa_est <- model_summary_1 %>% 
+  dplyr::mutate(across(where(is.double), ~ round(.x, 3))) %>% 
+  dplyr::rename("predictor" = rowname) %>% 
+  dplyr::mutate(qcqa_q2_5 = q2_5,
+                qcqa_q97_5 = q97_5,
+                qcqa_estimate = estimate) %>% 
+  dplyr::select(predictor, qcqa_estimate, qcqa_q2_5, qcqa_q97_5)
+```
+
+Comapring with full model esimates 
+
+paste0(q2_5, " to ", q97_5)
+
+```{r}
+concentration_mod_log <-  readRDS(file = paste0(mods_wd, "./concentration_mod_log.rds"))
+
+prim_summary <-  as.data.frame(fixef(concentration_mod_log, summary = TRUE)) %>% 
+  rownames_to_column() %>% 
+  clean_names()
+
+table_s4_data <- prim_summary %>% 
+  dplyr::mutate(across(where(is.double), ~ round(.x, 3))) %>% 
+  dplyr::rename("predictor" = rowname) %>% 
+  dplyr::mutate(
+    prim_q2_5 = q2_5,
+    prim_q97_5 = q97_5,
+    prim_estimate = estimate
+  ) %>% 
+  dplyr::select(predictor, prim_estimate, prim_q2_5, prim_q97_5) %>% 
+  dplyr::left_join(qcqa_est, by = "predictor") %>% 
+    dplyr::mutate(
+    delta_estimate = prim_estimate - qcqa_estimate,
+    delta_low = prim_q2_5 - qcqa_q2_5,
+    delta_high = prim_q97_5 - qcqa_q97_5,
+    rel_diff = round(abs(delta_estimate / prim_estimate)*100,0),
+    no_overlap = (prim_q2_5 > qcqa_q97_5 | prim_q97_5 < qcqa_q2_5),
+    flag_change = rel_diff > 0.15 & no_overlap,
+    prim_CrI = paste0(prim_q2_5, " to ", prim_q97_5),
+    qcqa_CrI = paste0(qcqa_q2_5, " to ", qcqa_q97_5),
+    delta_CrI = paste0(delta_low, " to ", delta_high)
+  ) %>% 
+  dplyr::select(
+    predictor, prim_estimate, prim_CrI, 
+    qcqa_estimate, qcqa_CrI, 
+    rel_diff, no_overlap, flag_change
+  )
+  
+table_s4 <- table_s4_data %>% 
+  flextable() %>%
+  set_header_labels(
+    predictor = "Predictor",
+    prim_estimate = "Primary estimate",
+    prim_CrI = "Primary 95% CrI",
+    qcqa_estimate = "QC/QA-restricted estimate",
+    qcqa_CrI = "QC/QA 95% CrI",
+    delta_estimate = "Δ estimate",
+    delta_CrI = "Δ 95% CrI",
+    rel_diff = "Estimate %Δ",
+    no_overlap = "No CrI Overlap",
+    flag_change = "Flagged?"
+  ) %>%
+  autofit() %>%
+  color(i = ~ flag_change == TRUE, color = "red", part = "body") %>%
+  bold(i = ~ flag_change == TRUE, bold = TRUE, part = "body")
+
+table_s4
+```
+
+
+Saving the table 
+
+```{r}
+save_as_docx(table_s4, path = paste0(fig_wd, "./table-s4.docx"))
+```
+
+Figure
+
+```{r, fig.height=5, fig.width=6}
+text_coord <- surfacewater_conc %>% 
+  summarise(y_max = max(value_log, na.rm = TRUE),
+            x_max = max(surfacewater_median_log, na.rm = TRUE),
+            x_min = min(surfacewater_median_log, na.rm = TRUE),
+            x = mean(c(x_max,x_min)))
+
+y_coord <- text_coord %>% pull(y_max)
+
+x_coord <- text_coord %>% pull(x_min)
+
+
+fig_1a <- ggplot() +
+  geom_line(data = estimate_data_1, aes(x = surfacewater_median_log, y = estimate__), color = "#1c4595", linewidth = 1) +
+  geom_ribbon(data = estimate_data_1, aes(x = surfacewater_median_log, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
+  geom_point(data = surfacewater_conc, aes(x = surfacewater_median_log, y = value_log), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
+  annotate(
+    "text",
+    x = x_coord, 
+    y = y_coord, 
+    label = paste0(
+      "Bayesian log-log Gaussian regression", "\n",
+      "Effect estimate: ", round(estimate_1, 3), "\n",
+      "CI: ", round(L95CI_1, 3), " - ", round(H95CI_1, 3)
+    ),
+    hjust = 0, vjust = 1, size = 4
+  ) +
+  labs(
+    title = "Test vs surfacewater concentrations",
+    x = "Log median surface water concentration",
+    y = "Log tested concentration"
+  ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+
+fig_1a
+```
+
+
+Plot surface water concentrations by year   
+
+```{r, fig.height=5, fig.width=6}
+text_coord <- surfacewater_conc %>% 
+  summarise(y_max = max(value_log, na.rm = TRUE),
+            x_max = max(relative_year, na.rm = TRUE),
+            x_min = min(relative_year, na.rm = TRUE),
+            x_mean = mean(c(x_max,x_min)))
+
+y_coord <- text_coord %>% pull(y_max)
+
+x_coord <- text_coord %>% pull(x_min)
+
+
+fig_s2 <- ggplot() +
+  geom_line(data = estimate_data_year_1, aes(x = relative_year, y = estimate__), color = "#1c4595", linewidth = 1) +
+  geom_ribbon(data = estimate_data_year_1, aes(x = relative_year, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
+  geom_point(data = surfacewater_conc, aes(x = relative_year, y = value_log), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
+  annotate(
+    "text",
+    x = x_coord, 
+    y = y_coord, 
+    label = paste0(
+      "Bayesian log-log Gaussian regression", "\n",
+      "Effect estimate: ", round(estimate_year_1, 3), "\n",
+      "CI: ", round(L95CI_year_1, 3), " - ", round(H95CI_year_1, 3)
+    ),
+    hjust = 0, vjust = 1, size = 4
+  ) +
+  labs(
+    title = "Test concentrations over time",
+    x = "Publication year",
+    y = "Log tested concentration"
+  ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+
+fig_s2
+```
+
+
+#### 🚽 Waste water
+
+##### Model structure
+
+```{r}
+eff_concentration_str <- bf(value_log ~ effluent_median_log + relative_year + doses,
+                  family = gaussian())
+
+eff_concentration_str_null <- bf(value_log ~ relative_year + doses,
+                  family = gaussian())
+```
+
+These are the default priors.  
+
+```{r}
+suppressWarnings(get_prior(eff_concentration_str, data = wastewater_conc,  family = gaussian())) %>% 
+  flextable()
+```
+
+##### Run model
+
+Run model. This has been hashed out as I have saved the model, and will re-load it instead of re-running it.
+
+
+```{r}
+options(brms.backend = "cmdstanr")
+eff_concentration_mod_filter_log <- brm(eff_concentration_str,
+               data = wastewater_conc,
+               cores = 4,
+               chains = 4,
+               #prior = mod_priors, #use defaults
+               warmup = 1000,
+               seed = 20250418,
+               thin = 2,
+               iter = 8000,
+               control = list(max_treedepth = 20, adapt_delta = 0.95),
+               save_pars = save_pars(all=TRUE),
+               sample_prior = TRUE,
+               file = paste0(mods_wd, './eff_concentration_filter_mod_log'))
+
+eff_concentration_mod_filter_null_log <- brm(eff_concentration_str_null,
+               data = wastewater_conc,
+               cores = 4,
+               chains = 4,
+               #prior = mod_priors, #use defaults
+               warmup = 1000,
+               seed = 20250418,
+               thin = 2,
+               iter = 8000,
+               control = list(max_treedepth = 20, adapt_delta = 0.9999),
+               save_pars = save_pars(all=TRUE),
+               sample_prior = TRUE,
+               file = paste0(mods_wd, './eff_concentration_filter_mod_null_log'))
+print("Model complete")
+```
+
+##### Re-load models
+
+Reload the model if necessary.  
+
+```{r}
+eff_concentration_mod_filter_log <-  readRDS(file = paste0(mods_wd, "./eff_concentration_filter_mod_log.rds"))
+eff_concentration_mod_filter_null_log <-  readRDS(file = paste0(mods_wd, "./eff_concentration_filter_mod_null_log.rds"))
+```
+
+
+##### Model diagnostics
+
+We compared the full model (including effluent_median_log) with the null model (excluding it) using approximate leave-one-out cross-validation (LOO-CV). The difference in expected log predictive density (ELPD) was:
+
+ΔELPD = 31.7, favouring the full model,
+
+With a standard error (SE) = 8.1.
+
+Because the ELPD difference is nearly four times greater than its standard error (Δ/SE ≈ 3.9), this provides strong evidence that including effluent_median_log improves the model’s out-of-sample predictive performance.
+
+This result suggests that the effluent concentration is an important predictor of tested pharmaceutical concentrations across studies, beyond the temporal trend and number of doses tested.
+
+```{r}
+loo_compare(loo(eff_concentration_mod_filter_log, moment_match = TRUE), loo(eff_concentration_mod_filter_null_log,  moment_match = TRUE))
+```
+
+The Bayes factor comparing the full model (which includes effluent_median_log) to the null model (which excludes it) was approximately 3.09 × 10¹³, strongly favouring the full model.
+
+This means that the observed data are over 30 trillion times more likely under the full model than under the null model. According to conventional interpretation thresholds (e.g. Jeffreys' scale), this constitutes decisive evidence that effluent_median_log meaningfully improves the explanatory power of the model.
+
+Together with the leave-one-out cross-validation results (ΔELPD = 31.7, SE = 8.1), this provides strong and consistent support for including effluent concentrations as a predictor of tested pharmaceutical concentrations.
+
+```{r}
+bayes_factor(eff_concentration_mod_filter_log, eff_concentration_mod_filter_null_log)
+```
+
+
+The full model, which included effluent_median_log along with relative_year and doses as covariates, yielded a Bayesian R² of 0.108 (95% compatibility interval: 0.070 to 0.150). This indicates that the model explains approximately 10.8% of the variance in the log-transformed tested concentrations.
+
+While the proportion of explained variance is relatively modest, this is consistent with expectations given the complexity and variability across ecotoxicological studies. The credible interval suggests moderate uncertainty but supports the conclusion that the model captures some meaningful structure in the data. This modest explanatory power—when considered alongside the strong model support from both LOO-CV (ΔELPD = 31.7) and the Bayes factor (>10¹³)—highlights the predictive relevance of effluent_median_log, even in the presence of residual heterogeneity.
+
+```{r}
+performance::r2_bayes(eff_concentration_mod_filter_log, robust = FALSE, ci = 0.95)
+```
+
+The mode roughly approximates the data 
+
+```{r}
+color_scheme_set("red")
+brms::pp_check(eff_concentration_mod_filter_log, ndraws = 50, type = "ecdf_overlay")
+```
+
+Checking R-hat values to confirm model convergence and ESS fo estimates.   
+
+```{r}
+print(summary(eff_concentration_mod_filter_log, prob = 0.95)) #All Rhat = 1 (good).
+```
+
+Diagnostic plots look fine. A smaller shape value indicates greater overdispersion (variance is much larger than the mean).  
+
+```{r}
+color_scheme_set("red")
+plot(eff_concentration_mod_filter_log)
+```
+
+```{r fig.height=8, fig.width=8}
+performance::check_model(eff_concentration_mod_filter_log)
+```
+
+
+##### Model estimates
+
+Pulling the marginal effect estimates from the model for our plots.  
+
+```{r}
+# Extract marginal effects for surface water and year
+estimate_data_2 <- conditional_effects(eff_concentration_mod_filter_log, effects = "effluent_median_log")[[1]]
+estimate_data_year_2 <- conditional_effects(eff_concentration_mod_filter_log, effects = "relative_year")[[1]]
+```
+
+
+These estimated coefficients represent the average effects across the entire dataset, controlling for (not averaging over) the other variables in the model. Because this is a log–log model, the coefficient for `log(effluent_median`) reflects an elasticity: the percent change in the response (log(value)) for a percent change in the predictor (`log(effluent_median)`).
+
+The estimated effect of `log(effluent_median)` was **β = 0.665** (95% CrI: 0.505 to 0.823), indicating that a **1% increase in effluent median concentration** is associated with an average **0.665% increase in tested concentration**. Since the credible interval does not include zero, this is a statistically meaningful effect.
+
+For relative_year, the estimated coefficient was **β = –0.130** (95% CrI: –0.189 to –0.070), suggesting a temporal decline in tested concentrations. Because the predictor is linear and the response is log-transformed, this indicates that each additional year is associated with an average **12.2% decrease in tested concentration, holding effluent concentration constant** (`exp(–0.130) ≈ 0.878`).
+
+```{r}
+model_summary_2 <-  as.data.frame(fixef(eff_concentration_mod_filter_log, summary = TRUE)) %>% 
+  rownames_to_column() %>% 
+  clean_names()
+
+estimate_2 <- model_summary_2$estimate[2]
+L95CI_2 <- model_summary_2$q2_5[2]
+H95CI_2 <- model_summary_2$q97_5[2]
+
+estimate_year_2 <- model_summary_2$estimate[3]
+L95CI_year_2 <- model_summary_2$q2_5[3]
+H95CI_year_2 <- model_summary_2$q97_5[3]
+
+
+qcqa_est_2 <- model_summary_2 %>% 
+  dplyr::mutate(across(where(is.double), ~ round(.x, 3))) %>% 
+  dplyr::rename("predictor" = rowname) %>% 
+  dplyr::mutate(qcqa_q2_5 = q2_5,
+                qcqa_q97_5 = q97_5,
+                qcqa_estimate = estimate) %>% 
+  dplyr::select(predictor, qcqa_estimate, qcqa_q2_5, qcqa_q97_5)
+```
+
+
+```{r}
+concentration_mod_log <-  readRDS(file = paste0(mods_wd, "./concentration_mod_log.rds"))
+
+prim_summary_2 <-  as.data.frame(fixef(eff_concentration_mod_log, summary = TRUE)) %>% 
+  rownames_to_column() %>% 
+  clean_names()
+
+table_s5_data <- prim_summary_2 %>% 
+  dplyr::mutate(across(where(is.double), ~ round(.x, 3))) %>% 
+  dplyr::rename("predictor" = rowname) %>% 
+  dplyr::mutate(
+    prim_q2_5 = q2_5,
+    prim_q97_5 = q97_5,
+    prim_estimate = estimate
+  ) %>% 
+  dplyr::select(predictor, prim_estimate, prim_q2_5, prim_q97_5) %>% 
+  dplyr::left_join(qcqa_est_2, by = "predictor") %>% 
+    dplyr::mutate(
+    delta_estimate = prim_estimate - qcqa_estimate,
+    delta_low = prim_q2_5 - qcqa_q2_5,
+    delta_high = prim_q97_5 - qcqa_q97_5,
+    rel_diff = round(abs(delta_estimate / prim_estimate)*100,0),
+    no_overlap = (prim_q2_5 > qcqa_q97_5 | prim_q97_5 < qcqa_q2_5),
+    flag_change = rel_diff > 0.15 & no_overlap,
+    prim_CrI = paste0(prim_q2_5, " to ", prim_q97_5),
+    qcqa_CrI = paste0(qcqa_q2_5, " to ", qcqa_q97_5),
+    delta_CrI = paste0(delta_low, " to ", delta_high)
+  ) %>% 
+  dplyr::select(
+    predictor, prim_estimate, prim_CrI, 
+    qcqa_estimate, qcqa_CrI, 
+    rel_diff, no_overlap, flag_change
+  )
+  
+table_s5 <- table_s5_data %>% 
+  flextable() %>%
+  set_header_labels(
+    predictor = "Predictor",
+    prim_estimate = "Primary estimate",
+    prim_CrI = "Primary 95% CrI",
+    qcqa_estimate = "QC/QA-restricted estimate",
+    qcqa_CrI = "QC/QA 95% CrI",
+    delta_estimate = "Δ estimate",
+    delta_CrI = "Δ 95% CrI",
+    rel_diff = "Estimate %Δ",
+    no_overlap = "No CrI Overlap",
+    flag_change = "Flagged?"
+  ) %>%
+  autofit() %>%
+  color(i = ~ flag_change == TRUE, color = "red", part = "body") %>%
+  bold(i = ~ flag_change == TRUE, bold = TRUE, part = "body")
+
+table_s5
+```
+
+Saving the table 
+
+```{r}
+save_as_docx(table_s5, path = paste0(fig_wd, "./table-s5.docx"))
+```
+
+
+Figure 
+
+```{r, fig.height=5, fig.width=6}
+text_coord <- wastewater_conc %>% 
+  summarise(y = max(value_log, na.rm = TRUE),
+            x_max = max(effluent_median_log, na.rm = TRUE),
+            x_min = min(effluent_median_log, na.rm = TRUE),
+            x = mean(c(x_max,x_min)))
+
+y_coord <- text_coord %>% pull(y)
+
+x_coord <- text_coord %>% pull(x)
+
+
+fig_1b <- ggplot() +
+  geom_line(data = estimate_data_2, aes(x = effluent_median_log, y = estimate__), color = "#1c4595", linewidth = 1) +
+  geom_ribbon(data = estimate_data_2, aes(x = effluent_median_log, ymin = lower__, ymax = upper__), fill = "#1c4595", alpha = 0.1) +
+  geom_point(data = wastewater_conc, aes(x = effluent_median_log, y = value_log), alpha = 0.4, shape = 21, color = "#01080A", fill = "#E76A24") +
+  annotate(
+    "text",
+    x = x_coord, 
+    y = y_coord, 
+    label = paste0(
+      "Bayesian log-log Gaussian regression", "\n",
+      "Effect estimate: ", round(estimate_2, 3), "\n",
+      "CI: ", round(L95CI_2, 3), " - ", round(H95CI_2, 3)
+    ),
+    hjust = 0, vjust = 1, size = 4
+  ) +
+  labs(
+    title = "Test vs effluent concentrations",
+    x = "Log median effluent concentration",
+    y = "Log tested concentration"
+  ) +
+  theme_clean() +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+
+fig_1b 
+```
+
+### Concentration fold differences
+
+Here we are summarising how many test were below the median surface water and effluent concentrations as well as the upper 95%CI. We are also calculating the mean-fold difference in concentrations.
+
+```{r}
+conc_summary_overall <- all_databases_with_qc_filter_with_sum %>% 
+  dplyr::reframe(
+    eipaab_n = length(unique_row_id),
+    n_compounds_sw = length(unique(compound_name_corrected[!is.na(surfacewater_median)])),
+    n_compounds_ef = length(unique(compound_name_corrected[!is.na(effluent_median)])),
+    n_sw = sum(!is.na(under_med_surf)),
+    less_med_sw = sum(under_med_surf, na.rm = TRUE),
+    less_hci_sw = sum(under_hci_surf, na.rm = TRUE),
+    percent_less_med_sw = (less_med_sw / n_sw) * 100,
+    percent_less_hic_sw = (less_hci_sw / n_sw) * 100,
+    n_ef = sum(!is.na(under_med_effl)),
+    less_med_ef = sum(under_med_effl, na.rm = TRUE),
+    less_hci_ef = sum(under_hci_effl, na.rm = TRUE),
+    percent_less_med_ef = (less_med_ef / n_ef) * 100,
+    percent_less_hic_ef = (less_hci_ef / n_ef) * 100,
+    
+    # Median values
+    fdiff_med_sw = median(diff_med_surf, na.rm = TRUE),
+    fdiff_hci_sw = median(diff_hic_surf, na.rm = TRUE),
+    fdiff_med_ef = median(diff_med_effl, na.rm = TRUE),
+    fdiff_hci_ef = median(diff_hic_effl, na.rm = TRUE),
+    
+    # Standard Deviation
+    sd_fdiff_med_sw = sd(diff_med_surf, na.rm = TRUE),
+    sd_fdiff_hci_sw = sd(diff_hic_surf, na.rm = TRUE),
+    sd_fdiff_med_ef = sd(diff_med_effl, na.rm = TRUE),
+    sd_fdiff_hci_ef = sd(diff_hic_effl, na.rm = TRUE)
+  ) %>% 
+  dplyr::mutate(across(everything(), ~ ifelse(is.nan(.), NA, .)))  # Convert NaNs to NAs
+```
+
+
+#### Result table
+
+For the 167 compounds that were present in the EIPAAB database and environmental detections (in UBA, NORMAN, or Wilkson) representing 767 tests, only 12.43% and 44.80% employed test concentrations lower then median and upper 95% credible interval of surface water concentrations, respectively (Table S5). Further, only 19.637% and 49.15% employed test concentrations lower then median and upper 95% credible interval of wastewater effluent (Table S5). On average, concentrations used in behavioural ecotoxicology were 75 times higher then median surf water concentrations, and 17 times higher then those in effluent. 
+
+
+**Table S3:** The number of exposures in the EIPAAB database that used concentrations less then median and upper 95% credible interval of surface water and effluent concentrations
+
+```{r}
+surf <- conc_summary_overall %>% 
+  dplyr::mutate(fdiff_med_sw = round(fdiff_med_sw,2),
+                fdiff_hci_sw = round(fdiff_hci_sw)) %>% 
+  dplyr::select(n_sw, less_med_sw, less_hci_sw, fdiff_med_sw, fdiff_hci_sw, percent_less_med_sw, percent_less_hic_sw) %>% 
+  dplyr::rename(total_n = n_sw, less_med = less_med_sw, less_hci = less_hci_sw, fdiff_med = fdiff_med_sw, fdiff_hci = fdiff_hci_sw, percent_less_med = percent_less_med_sw, percent_less_hic = percent_less_hic_sw) %>% 
+  dplyr::mutate(matrix = "Surface water")
+
+effluent <- conc_summary_overall %>% 
+    dplyr::mutate(fdiff_med_ef = round(fdiff_med_ef, 2),
+                fdiff_hci_ef = round(fdiff_hci_ef, 2)) %>% 
+  dplyr::select(n_ef, less_med_ef, less_hci_ef, fdiff_med_ef, fdiff_hci_ef, percent_less_med_ef, percent_less_hic_ef) %>% 
+  dplyr::rename(total_n = n_ef, less_med = less_med_ef, less_hci = less_hci_ef, fdiff_med = fdiff_med_ef, fdiff_hci = fdiff_hci_ef, percent_less_med = percent_less_med_ef, percent_less_hic = percent_less_hic_ef) %>% 
+  dplyr::mutate(matrix = "Effluent")
+
+overall_summary_table_filtered <- rbind(surf, effluent) %>% 
+  dplyr::select(matrix, everything()) %>% 
+  dplyr::mutate(
+    percent_less_med = round(percent_less_med, 2),
+    percent_less_hic = round(percent_less_hic, 2)
+  ) %>% 
+  dplyr::rename(
+    Matrix = matrix,
+    `Total tests` = total_n,
+    `Dose less than median` = less_med,
+    `Dose less than upper 95%CrI` = less_hci,
+    `Mean-fold difference  from median` = fdiff_med,
+    `Mean-fold difference  from upper 95%CrI` = fdiff_hci,
+    `Percent less than median (%)` = percent_less_med,
+    `Percent less than upper 95%CrI (%)` = percent_less_hic
+  ) %>%
+  flextable() %>%
+  colformat_num(j = "Total tests", digits = 0) %>%  # Format total tests as whole numbers
+  align(align = "center", part = "all") %>%
+  autofit()
+
+overall_summary_table_filtered
+```
+
+
+```{r}
+save_as_docx(overall_summary_table_filtered, path = paste0(fig_wd, "./table-s6-2.docx"))
+```
+
+
+## Whats driving these differences
+
+What's the mean environmental dose
+
+```{r}
+eipaab_compounds_list_qcaq <- all_databases_with_qc_filter %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::pull(compound_name_corrected)
+
+eipaab_compounds_list_all <- all_databases %>% 
+  dplyr::filter(source == "eipaab") %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::pull(compound_name_corrected)
+
+
+enviro__cross_over_compounds_list <- all_databases_with_qc_filter %>% 
+  dplyr::filter(source != "eipaab" & compound_name_corrected %in% eipaab_compounds_list) %>% 
+  dplyr::distinct(compound_name_corrected) %>% 
+  dplyr::pull(compound_name_corrected)
+
+
+median_tbl_1 <- all_databases_with_qc_filter %>% 
+  dplyr::filter(value > 0 & compound_name_corrected %in% eipaab_compounds_list_qcaq) %>% 
+  dplyr::group_by(matrix_group) %>% 
+  dplyr::reframe(median = median(value, na.rm = T),
+                 data = "QC/QA",
+                 n_compounds = length(unique(compound_name_corrected))
+                 )
+
+median_tbl_2 <- all_databases %>% 
+  dplyr::filter(value > 0 & compound_name_corrected %in% eipaab_compounds_list_all) %>% 
+  dplyr::group_by(matrix_group) %>% 
+  dplyr::reframe(median = median(value, na.rm = T),
+                 data = "All",
+                 n_compounds = length(unique(compound_name_corrected))
+                 )
+
+median_con <- rbind(median_tbl_1, median_tbl_2) %>% 
+  dplyr::arrange(matrix_group) %>% 
+  flextable()
+
+median_con
+```
+
+

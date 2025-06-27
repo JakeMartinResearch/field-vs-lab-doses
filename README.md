@@ -38,7 +38,8 @@ Pharmaceutical pollution is an escalating issue, with widespread contamination n
 ├── 📂 fig/                          # All figures associated with the project
 ├── 📂 mods/                         # All statistical models associated with the project
 ├── 📄 field-vs-lab-doses-1.Rmd      # R script used to tidy and combind all the databases 
-├── 📄 field-vs-lab-doses-2.Rmd      # R script used for data analysis and visualisation  
+├── 📄 field-vs-lab-doses-2.Rmd      # R script used for data analysis and visualisation
+├── 📄 field-vs-lab-doses-3.Rmd      # R script used for QA/QC sub-set sensitivity analysis
 └── 📄 index.html                    # A htlm knit of 'field-vs-lab-doses-2.Rmd' used as a git hub page
 ```
 
@@ -83,6 +84,7 @@ Pharmaceutical pollution is an escalating issue, with widespread contamination n
 
     -   `field-vs-lab-doses-1.Rmd`
     -   `field-vs-lab-doses-2.Rmd`
+    -   `field-vs-lab-doses-3.Rmd`
 
 ------------------------------------------------------------------------
 
@@ -118,13 +120,19 @@ RStudio will now pull the GitHub repo into a new local folder.
 
 ## 📑 Citation
 
-If you use or adapt this repository, please cite:
+If you use or adapt the methods used in this repository, please cite:
 
-> Martin, JM. et al. (2025). *Aligning Behavioural Ecotoxicology with Real-World Water Concentrations: Current Minimum Tested Levels for Pharmaceuticals Far Exceed Environmental Reality* [Manuscript in preparation].
+> Martin JM. et al. (2025). *Aligning Behavioural Ecotoxicology with Real-World Water Concentrations: Current Minimum Tested Levels for Pharmaceuticals Far Exceed Environmental Reality* [Manuscript in preparation].
 
-If you use the created database `martin-field-vs-lab-all-databases.csv`, please cite:
+If you use the collated database `martin-field-vs-lab-all-databases.csv`, please also cite:
 
-> Martin, J. M., Brand, J. A., & McCallum, E. (2025). Aligning Behavioural Ecotoxicology with Real-World Water Concentrations [martin-field-vs-lab-all-databases.csv]. <https://doi.org/10.17605/OSF.IO/H6CDECDE>
+> Martin JM, Brand JA, & McCallum E (2025). Aligning Behavioural Ecotoxicology with Real-World Water Concentrations [martin-field-vs-lab-all-databases.csv]. <https://doi.org/10.17605/OSF.IO/H6CDECDE>
+
+> Wilkinson JL, Boxall ABA, Kolpin DW, Leung KMY, Lai RWS, Wong D, et al. Pharmaceutical pollution of the world’s rivers. Proceedings of the National Academy of Sciences. 2022;119:1–10. DOI:10.1073/pnas.2113947119.
+
+> Network N. NORMAN EMPODAT Database - Chemical Occurrence Data [Internet]. Available from: https://www.norman-network.com/nds/empodat
+
+> aus der Beek T, Weber FA, Bergmann A, Hickmann S, Ebert I, Hein A, et al. Pharmaceuticals in the environment-Global occurrences and perspectives. Environ Toxicol Chem. 2016;35:823–35.DOI:10.1002/etc.3339.  
 
 ------------------------------------------------------------------------
 
