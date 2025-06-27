@@ -126,7 +126,7 @@ If you use or adapt the methods used in this repository, please cite:
 
 If you use the collated database `martin-field-vs-lab-all-databases.csv`, please also cite:
 
-> Martin JM, Brand JA, & McCallum E (2025). Aligning Behavioural Ecotoxicology with Real-World Water Concentrations [martin-field-vs-lab-all-databases.csv]. <https://doi.org/10.17605/OSF.IO/H6CDECDE>
+> Martin JM, Brand JA, & McCallum E (2025). Aligning Behavioural Ecotoxicology with Real-World Water Concentrations [martin-field-vs-lab-all-databases.csv]. <https://doi.org/10.17605/OSF.IO/H6CDE>
 
 > Wilkinson JL, Boxall ABA, Kolpin DW, Leung KMY, Lai RWS, Wong D, et al. Pharmaceutical pollution of the world’s rivers. Proceedings of the National Academy of Sciences. 2022;119:1–10. DOI:10.1073/pnas.2113947119.
 
