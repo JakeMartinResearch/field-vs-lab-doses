@@ -240,14 +240,24 @@ if (!dir.exists("mods")) {dir.create("mods")}
 # 💿 Databases 
 <!------------------------------->
 
-This is the database made in part one of this script `martin-field-vs-lab-all-databases.csv`
+This is the database made in part one of this script `martin-field-vs-lab-all-databases.csv`. It can be downloaded from the Open Science Frame Work (OSF) project page "Aligning Behavioural Ecotoxicology with Real-World Water Concentrations" by Jake M. Martin, Jack A Brand, and Erin McCallum
+[LINK https://osf.io/h6cde/]  
 
-## All databases
+You can cite the databases as  
+
+> Martin JM, Brand JA, & McCallum E (2025). Aligning Behavioural Ecotoxicology with Real-World Water Concentrations [martin-field-vs-lab-all-databases.csv]. <https://doi.org/10.17605/OSF.IO/H6CDE>
 
 ```{r}
 all_databases <- fread(paste0(data_wd, "./martin-field-vs-lab-all-databases.csv"))
 ```
 
+If you use the collated database, please also cite:  
+
+> Wilkinson JL, Boxall ABA, Kolpin DW, Leung KMY, Lai RWS, Wong D, et al. Pharmaceutical pollution of the world’s rivers. Proceedings of the National Academy of Sciences. 2022;119:1–10. DOI:10.1073/pnas.2113947119.  
+
+> Network N. NORMAN EMPODAT Database - Chemical Occurrence Data [Internet]. Available from: https://www.norman-network.com/nds/empodat  
+
+> aus der Beek T, Weber FA, Bergmann A, Hickmann S, Ebert I, Hein A, et al. Pharmaceuticals in the environment-Global occurrences and perspectives. Environ Toxicol Chem. 2016;35:823–35.DOI:10.1002/etc.3339.    
 
 <!------------------------------->
 # 🧮 Analysis 
