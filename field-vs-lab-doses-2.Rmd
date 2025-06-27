@@ -524,7 +524,7 @@ table_all <- full_join(surf_table, eff_table, by = "Compound") %>%
 Saving the table as a HTLM file
 
 ```{r}
-gtsave(table_all, filename = paste0(fig_wd, "./martin-et-al-supplemratry-file-1-concentration-summary-table.html"))
+gtsave(table_all, filename = paste0(fig_wd, "./martin-et-al-supplementary-file-2-concentration-summary-table.html"))
 ```
 
 
