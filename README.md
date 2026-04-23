@@ -21,13 +21,13 @@ Pharmaceutical pollution is an escalating issue, with widespread contamination n
 -   **Authors**: Jake M. Martin^1,2,3,📩^, Jack A. Brand^2,4^, Erin S. McCallum^2^\
 
 -   **Institutions**:\
-    ^1^ School of Life and Environmental Sciences, Deakin University, Geelong, Victoria, Australia\
-    ^2^ Department of Wildlife, Fish, and Environmental Studies, Swedish University of Agricultural Sciences, Umeå, Sweden\
-    ^3^ School of Biological Sciences, Monash University, Clayton, Victoria, Australia\
-    ^4^ Institute of Zoology, Zoological Society of London, London, United Kingdom\
-    ^📩^ Corresponding author\
+    1 School of Life and Environmental Sciences, Deakin University, Geelong, Victoria, Australia\
+    2 Department of Wildlife, Fish, and Environmental Studies, Swedish University of Agricultural Sciences, Umeå, Sweden\
+    3 School of Biological Sciences, Monash University, Clayton, Victoria, Australia\
+    4 Institute of Zoology, Zoological Society of London, London, United Kingdom\
+    📩 Corresponding author\
 
--   **Status**: 🚧 Unpublished 🚧
+-   **Status**: Published.  *Environ. Sci. Technol. Lett. 2025, 12, 10, 1308–1313.* https://doi.org/10.1021/acs.estlett.5c00665
 
 ------------------------------------------------------------------------
 
@@ -35,12 +35,13 @@ Pharmaceutical pollution is an escalating issue, with widespread contamination n
 
 ```         
 📂 field-vs-lab-doses/
-├── 📂 fig/                          # All figures associated with the project
-├── 📂 mods/                         # All statistical models associated with the project
-├── 📄 field-vs-lab-doses-1.Rmd      # R script used to tidy and combind all the databases 
-├── 📄 field-vs-lab-doses-2.Rmd      # R script used for data analysis and visualisation
-├── 📄 field-vs-lab-doses-3.Rmd      # R script used for QA/QC sub-set sensitivity analysis
-└── 📄 index.html                    # A htlm knit of 'field-vs-lab-doses-2.Rmd' used as a git hub page
+├── 📂 fig/                                     # All figures associated with the project
+├── 📂 mods/                                    # All statistical models associated with the project
+├── 📄 field-vs-lab-doses-1.Rmd                 # R script used to tidy and combind all the databases 
+├── 📄 field-vs-lab-doses-2.Rmd                 # R script used for data analysis and visualisation
+├── 📄 field-vs-lab-doses-3.Rmd                 # R script used for QA/QC sub-set sensitivity analysis
+├── 📄 martin-et-al-supplementary-file-2...html # Summary table for environmental occurrence
+└── 📄 index.html                               # A htlm knit of 'field-vs-lab-doses-2.Rmd' used as a git hub page
 ```
 
 ------------------------------------------------------------------------
@@ -122,17 +123,15 @@ RStudio will now pull the GitHub repo into a new local folder.
 
 If you use or adapt the methods used in this repository, please cite:
 
-> Martin JM. et al. (2025). *Aligning Behavioural Ecotoxicology with Real-World Water Concentrations: Current Minimum Tested Levels for Pharmaceuticals Far Exceed Environmental Reality* [Manuscript in preparation].
+> Martin JM. Brand JA, McCallum ES. Aligning Behavioural Ecotoxicology with Real-World Water Concentrations: Current Minimum Tested Levels for Pharmaceuticals Far Exceed Environmental Reality. *Environ. Sci. Technol. Lett.*, 2025;12,10:1308–1313. DOI: 10.1021/acs.estlett.5c00665
 
 If you use the collated database `martin-field-vs-lab-all-databases.csv`, please also cite:
 
-> Martin JM, Brand JA, & McCallum E (2025). Aligning Behavioural Ecotoxicology with Real-World Water Concentrations [martin-field-vs-lab-all-databases.csv]. <https://doi.org/10.17605/OSF.IO/H6CDE>
-
-> Wilkinson JL, Boxall ABA, Kolpin DW, Leung KMY, Lai RWS, Wong D, et al. Pharmaceutical pollution of the world’s rivers. Proceedings of the National Academy of Sciences. 2022;119:1–10. DOI:10.1073/pnas.2113947119.
+> Wilkinson JL, Boxall ABA, Kolpin DW, Leung KMY, Lai RWS, Wong D, et al. Pharmaceutical pollution of the world’s rivers. *Proc. Natl. Acad. Sci. USA*. 2022;119:1–10. DOI: 10.1073/pnas.2113947119.
 
 > Network N. NORMAN EMPODAT Database - Chemical Occurrence Data [Internet]. Available from: https://www.norman-network.com/nds/empodat
 
-> aus der Beek T, Weber FA, Bergmann A, Hickmann S, Ebert I, Hein A, et al. Pharmaceuticals in the environment-Global occurrences and perspectives. Environ Toxicol Chem. 2016;35:823–35.DOI:10.1002/etc.3339.  
+> aus der Beek T, Weber FA, Bergmann A, Hickmann S, Ebert I, Hein A, et al. Pharmaceuticals in the environment-Global occurrences and perspectives. *Environ Toxicol Chem*. 2016;35:823–35.DOI:10.1002/etc.3339.  
 
 ------------------------------------------------------------------------
 
